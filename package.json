@@ -22,7 +22,7 @@
   "module": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
-    "lib/**/*",
+    "lib/",
     "README.md",
     "LICENSE"
   ],
