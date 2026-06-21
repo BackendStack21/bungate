@@ -18,6 +18,10 @@ export interface BunTLSOptions {
   ca?: string | Buffer
   passphrase?: string
   dhParamsFile?: string
+  minVersion?: 'TLSv1.2' | 'TLSv1.3'
+  cipherSuites?: string[]
+  requestCert?: boolean
+  rejectUnauthorized?: boolean
 }
 
 /**
@@ -65,7 +69,7 @@ export class TLSManager {
           tlsOptions.cert = readFileSync(this.config.cert)
         } catch (error) {
           throw new Error(
-            `Failed to load certificate from ${this.config.cert}: ${error}`,
+            `Failed to load TLS certificate: ${error instanceof Error ? error.message : error}`,
           )
         }
       } else {
@@ -80,7 +84,7 @@ export class TLSManager {
           tlsOptions.key = readFileSync(this.config.key)
         } catch (error) {
           throw new Error(
-            `Failed to load private key from ${this.config.key}: ${error}`,
+            `Failed to load TLS private key: ${error instanceof Error ? error.message : error}`,
           )
         }
       } else {
@@ -95,7 +99,7 @@ export class TLSManager {
           tlsOptions.ca = readFileSync(this.config.ca)
         } catch (error) {
           throw new Error(
-            `Failed to load CA certificate from ${this.config.ca}: ${error}`,
+            `Failed to load TLS CA certificate: ${error instanceof Error ? error.message : error}`,
           )
         }
       } else {
@@ -175,7 +179,25 @@ export class TLSManager {
       return null
     }
 
-    return this.tlsOptions
+    const options: BunTLSOptions = { ...this.tlsOptions }
+
+    if (this.config.minVersion) {
+      options.minVersion = this.config.minVersion
+    }
+
+    if (this.config.cipherSuites && this.config.cipherSuites.length > 0) {
+      options.cipherSuites = this.config.cipherSuites
+    }
+
+    if (this.config.requestCert != null) {
+      options.requestCert = this.config.requestCert
+    }
+
+    if (this.config.rejectUnauthorized != null) {
+      options.rejectUnauthorized = this.config.rejectUnauthorized
+    }
+
+    return options
   }
 
   /**

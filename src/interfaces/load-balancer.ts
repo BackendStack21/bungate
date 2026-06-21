@@ -123,6 +123,16 @@ export interface LoadBalancerConfig {
      */
     method?: 'GET' | 'HEAD'
     /**
+     * Allowed target URL schemes for health checks.
+     * @default ['http', 'https']
+     */
+    allowedSchemes?: string[]
+    /**
+     * Allowed target hosts/networks for health checks (CIDR or exact host).
+     * If empty, all hosts are allowed.
+     */
+    allowedHosts?: string[]
+    /**
      * Number of consecutive failures before marking target unhealthy
      * Prevents transient errors from flapping target state
      * @default 3
@@ -214,8 +224,10 @@ export interface LoadBalancerStats {
 export interface LoadBalancer {
   /**
    * Select next target based on strategy
+   * @param request - The incoming HTTP request
+   * @param clientIP - Optional pre-validated client IP from the gateway socket
    */
-  selectTarget(request: Request): LoadBalancerTarget | null
+  selectTarget(request: Request, clientIP?: string): LoadBalancerTarget | null
 
   /**
    * Add a target to the load balancer
@@ -256,4 +268,14 @@ export interface LoadBalancer {
    * Stop health checks
    */
   stopHealthChecks(): void
+
+  /**
+   * Atomically increment the active connection count for a target.
+   */
+  incrementConnections(url: string): void
+
+  /**
+   * Atomically decrement the active connection count for a target.
+   */
+  decrementConnections(url: string): void
 }

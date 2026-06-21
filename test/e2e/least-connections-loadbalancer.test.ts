@@ -393,6 +393,7 @@ describe('Least Connections Load Balancer E2E Tests', () => {
 
     // Verify custom headers were passed through
     expect(data.headers['x-test-header']).toBe('least-connections-test')
-    expect(data.headers['authorization']).toBe('Bearer lc-token')
+    // Authorization is stripped from proxied requests for security
+    expect(data.headers['authorization']).toBeUndefined()
   })
 })

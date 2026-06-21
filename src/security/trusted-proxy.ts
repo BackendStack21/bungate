@@ -281,13 +281,15 @@ export class TrustedProxyValidator {
   }
 
   /**
-   * Extract the real client IP from request headers
+   * Extract the real client IP from request headers.
    *
-   * Only trusts forwarded headers if the immediate proxy is validated.
-   * Falls back to the direct connection IP if proxy is not trusted.
+   * Only trusts forwarded headers if the immediate proxy (remoteIP) is validated.
+   * Walks the X-Forwarded-For chain from right to left, skipping consecutive
+   * trusted proxies, and returns the first untrusted IP. This prevents attackers
+   * from prepending arbitrary IPs to the left of a valid forwarded chain.
    *
    * @param req - The HTTP request
-   * @param remoteIP - The direct connection IP address
+   * @param remoteIP - The direct connection IP address (must come from the socket)
    * @returns The extracted client IP address
    */
   extractClientIP(req: Request, remoteIP: string): string {
@@ -295,7 +297,7 @@ export class TrustedProxyValidator {
       return remoteIP
     }
 
-    // If the immediate proxy is not trusted, use the direct connection IP
+    // If the immediate proxy is not trusted, ignore all forwarded headers
     if (!this.validateProxy(remoteIP)) {
       this.logger.debug('Using direct connection IP (proxy not trusted)', {
         remoteIP,
@@ -303,45 +305,53 @@ export class TrustedProxyValidator {
       return remoteIP
     }
 
-    // Try to extract from forwarded headers
     const headers = req.headers
 
-    // X-Forwarded-For is the most common header
+    // X-Forwarded-For: client, proxy1, proxy2, ..., immediateProxy
     const xForwardedFor = headers.get('x-forwarded-for')
     if (xForwardedFor) {
-      const chain = xForwardedFor.split(',').map((ip) => ip.trim())
+      const chain = xForwardedFor
+        .split(',')
+        .map((ip) => ip.trim())
+        .filter(Boolean)
 
-      // Validate the forwarded chain
       if (!this.validateForwardedChain(chain)) {
         this.logger.warn('Invalid forwarded header chain detected', {
-          chain,
+          chain: chain.join(', '),
           remoteIP,
         })
         return remoteIP
       }
 
-      // The first IP in the chain is the original client
-      const clientIP = chain[0]
+      // Walk from right to left, skipping trusted proxies. The rightmost entry
+      // was added by the proxy closest to the server (the immediate proxy).
+      let clientIP: string | null = null
+      for (let i = chain.length - 1; i >= 0; i--) {
+        const ip = chain[i]!
+        if (this.isInTrustedNetwork(ip)) {
+          continue
+        }
+        clientIP = ip
+        break
+      }
+
+      // If every entry in the chain is a trusted proxy, fall back to the
+      // leftmost entry (the original client as seen by the first trusted proxy).
+      if (!clientIP) {
+        clientIP = chain[0] ?? null
+      }
+
       if (clientIP && isValidIP(clientIP)) {
         this.logger.debug('Extracted client IP from X-Forwarded-For', {
           clientIP,
-          chain,
+          chain: chain.join(', '),
           remoteIP,
         })
         return clientIP
       }
     }
 
-    // Try other common headers
-    const xRealIP = headers.get('x-real-ip')
-    if (xRealIP && isValidIP(xRealIP)) {
-      this.logger.debug('Extracted client IP from X-Real-IP', {
-        clientIP: xRealIP,
-        remoteIP,
-      })
-      return xRealIP
-    }
-
+    // Prefer Cloudflare-signed header when behind Cloudflare
     const cfConnectingIP = headers.get('cf-connecting-ip')
     if (cfConnectingIP && isValidIP(cfConnectingIP)) {
       this.logger.debug('Extracted client IP from CF-Connecting-IP', {
@@ -349,6 +359,17 @@ export class TrustedProxyValidator {
         remoteIP,
       })
       return cfConnectingIP
+    }
+
+    // X-Real-IP / X-Client-IP are only trustworthy when the immediate proxy
+    // has been validated above.
+    const xRealIP = headers.get('x-real-ip')
+    if (xRealIP && isValidIP(xRealIP)) {
+      this.logger.debug('Extracted client IP from X-Real-IP', {
+        clientIP: xRealIP,
+        remoteIP,
+      })
+      return xRealIP
     }
 
     const xClientIP = headers.get('x-client-ip')
@@ -390,7 +411,7 @@ export class TrustedProxyValidator {
       this.logger.warn('Forwarded header chain exceeds maximum depth', {
         chainLength: chain.length,
         maxDepth,
-        chain,
+        chain: chain.join(', '),
       })
       return false
     }
@@ -400,7 +421,7 @@ export class TrustedProxyValidator {
       if (!isValidIP(ip)) {
         this.logger.warn('Invalid IP in forwarded header chain', {
           invalidIP: ip,
-          chain,
+          chain: chain.join(', '),
         })
         return false
       }
@@ -418,6 +439,11 @@ export class TrustedProxyValidator {
   isInTrustedNetwork(ip: string): boolean {
     if (!isValidIP(ip)) {
       return false
+    }
+
+    // When trustAll is enabled every hop is considered trusted.
+    if (this.config.trustAll) {
+      return true
     }
 
     for (const cidr of this.trustedCIDRs) {

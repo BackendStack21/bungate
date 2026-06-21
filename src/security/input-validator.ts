@@ -57,7 +57,10 @@ export class InputValidator {
     // Second pass: check blocked patterns on the fully-decoded path
     // Catches attacks hidden behind multiple layers of URL encoding
     // (e.g., %252f → %2f → /, which passes the raw check but fails decoded)
-    if (decoded !== path && matchesBlockedPattern(decoded, this.rules.blockedPatterns)) {
+    if (
+      decoded !== path &&
+      matchesBlockedPattern(decoded, this.rules.blockedPatterns)
+    ) {
       errors.push('Path contains blocked patterns')
     }
 
@@ -80,8 +83,6 @@ export class InputValidator {
       sanitized,
     }
   }
-
-
 
   /**
    * Validates HTTP headers against RFC specifications

@@ -71,6 +71,7 @@ import {
   createTrustedProxyValidator,
 } from '../security/trusted-proxy'
 import { createErrorHandlerMiddleware } from '../security/error-handler-middleware'
+import { sanitizeHeader } from '../security/utils'
 
 /**
  * Production-grade API Gateway implementation
@@ -159,12 +160,20 @@ export class BunGateway implements Gateway {
           config.errorHandler
         : // Default: log the error, return safe 500 without leaking internals
           (err: Error, req?: any) => {
-            this.config.logger?.error({
-              error: err.message,
-              stack: err.stack,
-              url: req?.url,
-              method: req?.method,
-            }, 'Unhandled gateway error')
+            const includeStack =
+              this.config.security?.errorHandling?.includeStackTrace === true ||
+              this.config.server?.development === true
+
+            this.config.logger?.error(
+              {
+                error: err.message,
+                ...(includeStack && err.stack ? { stack: err.stack } : {}),
+                url: req?.url,
+                method: req?.method,
+                clientIP: req ? this.getClientIP(req) : undefined,
+              },
+              'Unhandled gateway error',
+            )
 
             return new Response(
               JSON.stringify({ error: 'Internal server error' }),
@@ -179,7 +188,12 @@ export class BunGateway implements Gateway {
       // Map gateway config to router config
       defaultRoute: config.defaultRoute
         ? (req: ZeroRequest) => config.defaultRoute!(req)
-        : undefined,
+        : // Secure default 404 handler — no framework identifying information
+          () =>
+            new Response(JSON.stringify({ error: 'Not found' }), {
+              status: 404,
+              headers: { 'content-type': 'application/json' },
+            }),
       errorHandler: errorHandlerFn,
       port: config.server?.port,
     }
@@ -196,17 +210,31 @@ export class BunGateway implements Gateway {
       }),
     )
 
-    // Add size limiter middleware if configured
-    if (this.config.security?.sizeLimits) {
-      const {
-        createSizeLimiterMiddleware,
-      } = require('../security/size-limiter-middleware')
+    // Add global rate limiting middleware if configured at the gateway level
+    if (this.config.rateLimit) {
+      const globalRateLimitKeyGenerator = (req: ZeroRequest) =>
+        this.getClientIP(req)
       this.router.use(
-        createSizeLimiterMiddleware({
-          limits: this.config.security.sizeLimits,
+        createRateLimit({
+          ...this.config.rateLimit,
+          keyGenerator:
+            this.config.rateLimit.keyGenerator || globalRateLimitKeyGenerator,
         }),
       )
     }
+
+    // Add size limiter middleware with secure defaults (always enabled)
+    const sizeLimits = this.config.security?.sizeLimits ?? {
+      maxBodySize: 10 * 1024 * 1024, // 10MB
+      maxHeaderSize: 16384, // 16KB
+      maxHeaderCount: 100,
+      maxUrlLength: 2048,
+      maxQueryParams: 100,
+    }
+    const {
+      createSizeLimiterMiddleware,
+    } = require('../security/size-limiter-middleware')
+    this.router.use(createSizeLimiterMiddleware({ limits: sizeLimits }))
 
     // Add input validation middleware if configured
     if (this.config.security?.inputValidation) {
@@ -334,6 +362,9 @@ export class BunGateway implements Gateway {
 
       // Add CORS middleware if configured (must be early for preflight requests)
       if (this.config.cors) {
+        // Validate CORS configuration against security policy before registering
+        this.validateCORSConfig(this.config.cors)
+
         const corsOptions: CORSOptions = {
           origin: this.config.cors.origin,
           methods: this.config.cors.methods,
@@ -413,11 +444,15 @@ export class BunGateway implements Gateway {
       const baseUrl = route.target
 
       proxy = createGatewayProxy({
-        logger: this.config.logger?.pino.child({ component: 'GatewayProxy' }) as any,
+        logger: this.config.logger?.pino.child({
+          component: 'GatewayProxy',
+        }) as any,
         base: baseUrl,
         timeout: route.timeout || route.proxy?.timeout || 30000,
-        followRedirects: route.proxy?.followRedirects !== false,
-        maxRedirects: route.proxy?.maxRedirects || 5,
+        // Default redirect following to OFF to prevent open-redirect / SSRF issues.
+        // Individual routes must explicitly opt in.
+        followRedirects: route.proxy?.followRedirects === true,
+        maxRedirects: route.proxy?.maxRedirects ?? 5,
         headers: route.proxy?.headers || {},
         circuitBreaker: route.circuitBreaker,
       })
@@ -440,13 +475,17 @@ export class BunGateway implements Gateway {
           }
           // Handle proxy with load balancer
           else if (loadBalancer && proxy) {
-            const target = loadBalancer.selectTarget(req as Request)
+            const target = loadBalancer.selectTarget(
+              req as Request,
+              this.getClientIP(req),
+            )
             if (!target) {
               throw new Error('No healthy targets available')
             }
 
-            // Apply path rewriting if configured
-            let targetPath = new URL(req.url).pathname
+            // Preserve original query string unless pathRewrite explicitly changes it
+            const originalUrl = new URL(req.url)
+            let targetPath = originalUrl.pathname + originalUrl.search
             if (route.proxy?.pathRewrite) {
               if (typeof route.proxy.pathRewrite === 'function') {
                 targetPath = route.proxy.pathRewrite(targetPath)
@@ -462,13 +501,18 @@ export class BunGateway implements Gateway {
               }
             }
 
+            // Build sanitized request for upstream forwarding
+            const upstreamUrl = target.url + targetPath
+            const proxyReq = this.sanitizeProxyRequest(
+              req,
+              upstreamUrl,
+              route.proxy,
+            )
+
             // Measure end-to-end time to update latency metrics in the load balancer
             const startedAt = Date.now()
-            increaseTargetConnectionsIfLeastConnections(
-              route.loadBalancer?.strategy,
-              target,
-            )
-            response = await proxy.proxy(req, target.url + targetPath, {
+            loadBalancer.incrementConnections(target.url)
+            response = await proxy.proxy(proxyReq as ZeroRequest, upstreamUrl, {
               afterCircuitBreakerExecution:
                 route.hooks?.afterCircuitBreakerExecution,
               beforeCircuitBreakerExecution:
@@ -478,10 +522,7 @@ export class BunGateway implements Gateway {
                 res: Response,
                 body?: ReadableStream | null,
               ) => {
-                decreaseTargetConnectionsIfLeastConnections(
-                  route.loadBalancer?.strategy,
-                  target,
-                )
+                loadBalancer.decrementConnections(target.url)
                 // Update latency stats for strategies like 'latency' and as tie-breakers
                 try {
                   const duration = Date.now() - startedAt
@@ -489,10 +530,7 @@ export class BunGateway implements Gateway {
                 } catch {}
               },
               onError: (req: Request, error: Error) => {
-                decreaseTargetConnectionsIfLeastConnections(
-                  route.loadBalancer?.strategy,
-                  target,
-                )
+                loadBalancer.decrementConnections(target.url)
                 // Record error with latency to penalize target appropriately
                 try {
                   const duration = Date.now() - startedAt
@@ -503,10 +541,25 @@ export class BunGateway implements Gateway {
                 }
               },
             })
+
+            // Attach sticky-session cookie if the load balancer generated one
+            const stickyCookie = loadBalancer.getStickySessionCookie(target)
+            if (stickyCookie) {
+              response = new Response(response.body, {
+                status: response.status,
+                statusText: response.statusText,
+                headers: (() => {
+                  const h = new Headers(response.headers)
+                  h.append('Set-Cookie', stickyCookie)
+                  return h
+                })(),
+              })
+            }
           }
           // Handle simple proxy
           else if (route.target && proxy) {
-            let targetPath = new URL(req.url).pathname
+            const originalUrl = new URL(req.url)
+            let targetPath = originalUrl.pathname + originalUrl.search
 
             // Apply path rewriting if configured
             if (route.proxy?.pathRewrite) {
@@ -524,7 +577,13 @@ export class BunGateway implements Gateway {
               }
             }
 
-            response = await proxy.proxy(req, targetPath, {
+            const proxyReq = this.sanitizeProxyRequest(
+              req,
+              targetPath,
+              route.proxy,
+            )
+
+            response = await proxy.proxy(proxyReq as ZeroRequest, targetPath, {
               afterCircuitBreakerExecution:
                 route.hooks?.afterCircuitBreakerExecution,
               beforeCircuitBreakerExecution:
@@ -563,26 +622,161 @@ export class BunGateway implements Gateway {
     }
   }
 
+  /**
+   * Validates the user-supplied CORS configuration against the security policy.
+   * Rejects dangerous combinations before the CORS middleware is registered.
+   */
+  private validateCORSConfig(cors: GatewayConfig['cors']): void {
+    const validation = this.config.security?.corsValidation
+    if (!validation || !cors) {
+      return
+    }
+
+    const origins = cors.origin
+      ? Array.isArray(cors.origin)
+        ? cors.origin
+        : [cors.origin]
+      : []
+
+    if (validation.allowWildcardWithCredentials === false) {
+      const hasWildcard = origins.some((o) => o === '*')
+      if (hasWildcard && cors.credentials) {
+        throw new Error(
+          'CORS security violation: wildcard origin with credentials is not allowed',
+        )
+      }
+    }
+
+    if (validation.requireHttps) {
+      const hasHttpOrigin = origins.some(
+        (o) => typeof o === 'string' && o.startsWith('http:'),
+      )
+      if (hasHttpOrigin) {
+        throw new Error(
+          'CORS security violation: non-HTTPS origins are not allowed',
+        )
+      }
+    }
+
+    if (validation.maxOrigins && origins.length > validation.maxOrigins) {
+      throw new Error(
+        `CORS security violation: number of origins (${origins.length}) exceeds maximum (${validation.maxOrigins})`,
+      )
+    }
+  }
+
+  /**
+   * Sanitizes request headers before forwarding to upstream targets.
+   *
+   * - Strips hop-by-hop headers and any header named in Connection
+   * - Removes attacker-supplied X-Forwarded-* headers and replaces them with
+   *   values derived from the trusted client IP and inbound request
+   * - Strips sensitive authentication headers by default
+   * - Rewrites Host to the upstream hostname
+   * - Applies per-route proxy headers
+   */
+  private sanitizeProxyRequest(
+    req: ZeroRequest,
+    targetUrlOrPath: string,
+    proxyConfig?: RouteConfig['proxy'],
+  ): Request {
+    const incomingHeaders = new Headers(req.headers)
+
+    // 1. Remove hop-by-hop headers
+    const hopByHop = new Set([
+      'connection',
+      'keep-alive',
+      'proxy-authenticate',
+      'proxy-authorization',
+      'te',
+      'trailer',
+      'transfer-encoding',
+      'upgrade',
+    ])
+
+    const connectionHeader = incomingHeaders.get('connection')
+    if (connectionHeader) {
+      for (const name of connectionHeader.split(',')) {
+        hopByHop.add(name.trim().toLowerCase())
+      }
+    }
+
+    const sanitizedHeaders = new Headers()
+    for (const [name, value] of incomingHeaders.entries()) {
+      if (!hopByHop.has(name.toLowerCase())) {
+        const safeValue = sanitizeHeader(value)
+        if (safeValue !== '') {
+          sanitizedHeaders.set(name, safeValue)
+        }
+      }
+    }
+
+    // 2. Strip attacker-controlled forwarded headers and sensitive auth headers
+    sanitizedHeaders.delete('x-forwarded-for')
+    sanitizedHeaders.delete('x-forwarded-host')
+    sanitizedHeaders.delete('x-forwarded-proto')
+    sanitizedHeaders.delete('x-forwarded-port')
+    sanitizedHeaders.delete('x-real-ip')
+    sanitizedHeaders.delete('cf-connecting-ip')
+    sanitizedHeaders.delete('x-client-ip')
+    sanitizedHeaders.delete('cookie')
+    sanitizedHeaders.delete('authorization')
+    sanitizedHeaders.delete('proxy-authorization')
+
+    // 3. Set trusted forwarded headers
+    const clientIP = this.getClientIP(req)
+    const inboundUrl = new URL(req.url)
+    sanitizedHeaders.set('x-forwarded-for', clientIP)
+    sanitizedHeaders.set(
+      'x-forwarded-proto',
+      inboundUrl.protocol.replace(':', ''),
+    )
+    sanitizedHeaders.set(
+      'x-forwarded-port',
+      inboundUrl.port || (inboundUrl.protocol === 'https:' ? '443' : '80'),
+    )
+    sanitizedHeaders.set('x-forwarded-host', inboundUrl.host)
+
+    // 4. Rewrite Host header to upstream hostname
+    try {
+      const upstreamHost = targetUrlOrPath.includes('://')
+        ? new URL(targetUrlOrPath).host
+        : new URL(targetUrlOrPath, 'http://localhost').host
+      sanitizedHeaders.set('host', upstreamHost)
+    } catch {
+      // Leave host unchanged if target URL is malformed (will fail later)
+    }
+
+    // 5. Apply per-route proxy headers (these override the sanitized defaults)
+    if (proxyConfig?.headers) {
+      for (const [name, value] of Object.entries(proxyConfig.headers)) {
+        if (value === undefined || value === null) continue
+        const safeValue = sanitizeHeader(String(value))
+        sanitizedHeaders.set(name, safeValue)
+      }
+    }
+
+    return new Request(req.url, {
+      method: req.method,
+      headers: sanitizedHeaders,
+      body: req.body,
+    })
+  }
+
   private getClientIP(req: ZeroRequest): string {
+    // Always derive the direct peer address from the underlying socket when available.
+    const socketInfo = this.server?.requestIP(req as Request)
+    const directIP = socketInfo?.address ?? 'unknown'
+
     // If trusted proxy validator is enabled, use it for secure IP extraction
     if (this.trustedProxyValidator) {
-      // Get the direct connection IP (in Bun, this would come from the socket)
-      // For now, we'll try to extract from headers as a fallback
-      const headers = req.headers
-      const directIP =
-        headers.get('x-real-ip') ||
-        headers.get('cf-connecting-ip') ||
-        headers.get('x-client-ip') ||
-        'unknown'
-
-      // Use trusted proxy validator to extract client IP
       const clientIP = this.trustedProxyValidator.extractClientIP(
         req as Request,
         directIP,
       )
 
-      // Log suspicious forwarded headers
-      const xForwardedFor = headers.get('x-forwarded-for')
+      // Log suspicious forwarded headers from untrusted direct peers
+      const xForwardedFor = req.headers.get('x-forwarded-for')
       if (
         xForwardedFor &&
         !this.trustedProxyValidator.validateProxy(directIP)
@@ -600,21 +794,13 @@ export class BunGateway implements Gateway {
       return clientIP
     }
 
-    // Fallback to legacy behavior if trusted proxy validator is not enabled
-    const headers = req.headers
-    return (
-      headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      headers.get('x-real-ip') ||
-      headers.get('cf-connecting-ip') ||
-      headers.get('x-client-ip') ||
-      'unknown'
-    )
+    // No trusted proxy validator: the only trustworthy identifier is the socket IP.
+    return directIP
   }
 
   removeRoute(pattern: string): void {
-    // Not implemented in 0http-bun yet
-    // Could be a no-op or throw
-    throw new Error('removeRoute is not implemented in 0http-bun')
+    // Not implemented in the underlying router yet
+    throw new Error('removeRoute is not implemented')
   }
 
   getConfig(): GatewayConfig {
@@ -655,6 +841,11 @@ export class BunGateway implements Gateway {
       fetch: this.fetch,
       // Enable port sharing for cluster mode
       reusePort: !!process.env.CLUSTER_WORKER,
+      // Honor configured bind hostname to avoid accidental 0.0.0.0 exposure
+      hostname: this.config.server?.hostname,
+      // Defense-in-depth request size limits
+      maxRequestBodySize:
+        this.config.security?.sizeLimits?.maxBodySize ?? 10 * 1024 * 1024,
     }
 
     // Add TLS options if enabled
@@ -712,35 +903,5 @@ export class BunGateway implements Gateway {
       this.server.stop()
       this.server = null
     }
-  }
-}
-
-function increaseTargetConnectionsIfLeastConnections(
-  strategy: string | undefined,
-  target: any,
-): void {
-  if (
-    (strategy === 'least-connections' ||
-      strategy === 'weighted-least-connections' ||
-      strategy === 'p2c' ||
-      strategy === 'power-of-two-choices') &&
-    target.connections !== undefined
-  ) {
-    target.connections++
-  }
-}
-
-function decreaseTargetConnectionsIfLeastConnections(
-  strategy: string | undefined,
-  target: any,
-): void {
-  if (
-    (strategy === 'least-connections' ||
-      strategy === 'weighted-least-connections' ||
-      strategy === 'p2c' ||
-      strategy === 'power-of-two-choices') &&
-    target.connections !== undefined
-  ) {
-    target.connections--
   }
 }

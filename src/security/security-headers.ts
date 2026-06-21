@@ -90,8 +90,17 @@ export class SecurityHeadersMiddleware {
     // Add custom headers
     if (this.config.customHeaders) {
       for (const [name, value] of Object.entries(this.config.customHeaders)) {
+        if (value === undefined || value === null) continue
+        // Validate header name and value to prevent injection / header smuggling
+        if (!this.isValidHeaderName(name)) {
+          continue
+        }
+        const sanitizedValue = this.sanitizeHeaderValue(String(value))
+        if (sanitizedValue === null) {
+          continue
+        }
         // Merge with existing headers (custom headers take precedence)
-        headers.set(name, value)
+        headers.set(name, sanitizedValue)
       }
     }
 
@@ -163,6 +172,25 @@ export class SecurityHeadersMiddleware {
     }
 
     return policies.join(', ')
+  }
+
+  /**
+   * Validates a header name against RFC 7230 token syntax.
+   */
+  private isValidHeaderName(name: string): boolean {
+    return /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(name)
+  }
+
+  /**
+   * Sanitizes a header value, returning null if it contains forbidden characters.
+   */
+  private sanitizeHeaderValue(value: string): string | null {
+    // Allow RFC 7230 field-vchar (visible ASCII / obs-text) plus HTAB
+    if (!/[\t\x20-\x7E\x80-\xFF]*$/.test(value)) {
+      return null
+    }
+    // Remove control characters except HTAB and DEL
+    return value.replace(/[\x00-\x08\x0A-\x1F\x7F]/g, '')
   }
 
   /**

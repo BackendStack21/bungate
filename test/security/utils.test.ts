@@ -177,9 +177,7 @@ describe('recursiveDecodeURIComponent', () => {
   })
 
   test('handles mixed normal and encoded characters', () => {
-    expect(recursiveDecodeURIComponent('path%2Fto%2Ffile')).toBe(
-      'path/to/file',
-    )
+    expect(recursiveDecodeURIComponent('path%2Fto%2Ffile')).toBe('path/to/file')
   })
 })
 
@@ -272,9 +270,10 @@ describe('sanitizeHeader', () => {
     expect(sanitizeHeader('Bearer token123')).toBe('Bearer token123')
   })
 
-  test('removes all control characters in range', () => {
-    // Tab (\x09), newline (\x0A), carriage return (\x0D)
-    expect(sanitizeHeader('hello\x09world\x0Atest')).toBe('helloworldtest')
+  test('removes all control characters in range except HTAB', () => {
+    // Tab (\x09) is a valid separator per RFC 7230; newline (\x0A) and
+    // carriage return (\x0D) are removed.
+    expect(sanitizeHeader('hello\x09world\x0Atest')).toBe('hello\tworldtest')
   })
 
   test('handles string with only control chars', () => {
@@ -407,9 +406,9 @@ describe('isIPInCIDR', () => {
     expect(isIPInCIDR('192.168.1.1', '/24')).toBe(false)
   })
 
-  test('returns false for IPv6 CIDR (unsupported)', () => {
-    // network doesn't contain '.' → returns false
-    expect(isIPInCIDR('2001:db8::1', '2001:db8::/32')).toBe(false)
+  test('returns true for IPv6 CIDR within range', () => {
+    // IPv6 CIDR matching is now supported
+    expect(isIPInCIDR('2001:db8::1', '2001:db8::/32')).toBe(true)
   })
 
   test('returns false for NaN prefix', () => {
@@ -552,7 +551,11 @@ describe('redactSensitiveData', () => {
   })
 
   test('redacts sensitive keys in a flat object', () => {
-    const input = { username: 'john', password: 'secret123', email: 'john@example.com' }
+    const input = {
+      username: 'john',
+      password: 'secret123',
+      email: 'john@example.com',
+    }
     const result = redactSensitiveData(input)
     expect(result.username).toBe('john')
     expect(result.password).toBe('[REDACTED]')

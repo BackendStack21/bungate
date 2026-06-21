@@ -56,9 +56,7 @@ describe('validateSecurityConfig', () => {
       sessions: { entropyBits: 64 },
     })
     expect(result.valid).toBe(false)
-    expect(result.errors).toContain(
-      'Session entropy must be at least 128 bits',
-    )
+    expect(result.errors).toContain('Session entropy must be at least 128 bits')
   })
 
   test('should reject non-positive session TTL', () => {

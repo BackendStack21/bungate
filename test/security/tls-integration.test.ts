@@ -131,7 +131,9 @@ describe('TLS Integration with Gateway', () => {
     })
     gateways.push(gateway)
 
-    await expect(gateway.listen()).rejects.toThrow('Failed to load certificate')
+    await expect(gateway.listen()).rejects.toThrow(
+      'Failed to load TLS certificate',
+    )
   })
 
   test('should work with TLS disabled', async () => {

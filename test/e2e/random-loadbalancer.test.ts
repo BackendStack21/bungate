@@ -386,7 +386,8 @@ describe('Random Load Balancer E2E Tests', () => {
 
     // Verify custom headers were passed through
     expect(data.headers['x-test-header']).toBe('random-test')
-    expect(data.headers['authorization']).toBe('Bearer random-token')
+    // Authorization is stripped from proxied requests for security
+    expect(data.headers['authorization']).toBeUndefined()
     expect(data.server).toMatch(/echo-[123]/)
   })
 })

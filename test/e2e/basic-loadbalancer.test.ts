@@ -216,7 +216,8 @@ describe('Basic Load Balancer E2E Tests', () => {
 
     // Verify custom headers were passed through
     expect(data.headers['x-test-header']).toBe('test-value')
-    expect(data.headers['authorization']).toBe('Bearer test-token')
+    // Authorization is stripped from proxied requests for security
+    expect(data.headers['authorization']).toBeUndefined()
   })
 
   test('should distribute requests roughly evenly with round-robin', async () => {

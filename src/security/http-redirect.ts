@@ -44,8 +44,23 @@ export function createHTTPRedirectServer(config: HTTPRedirectConfig): Server {
     fetch: (req: Request) => {
       const url = new URL(req.url)
 
-      // Determine the redirect hostname
-      const redirectHost = hostname || url.hostname
+      // Validate the incoming Host header. When an explicit hostname is
+      // configured, always use it. Otherwise only accept the configured
+      // hostname; do not use arbitrary request Host headers to avoid
+      // open-redirect / cache-poisoning attacks.
+      const requestHost = url.hostname
+      const redirectHost = hostname ?? requestHost
+
+      if (hostname && requestHost !== '' && requestHost !== hostname) {
+        logger?.warn?.('Rejected HTTP redirect for unexpected host', {
+          expected: hostname,
+          received: requestHost,
+        })
+        return new Response(JSON.stringify({ error: 'Bad Request' }), {
+          status: 400,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
 
       // Build HTTPS URL
       const httpsUrl = new URL(url)

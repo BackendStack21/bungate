@@ -194,7 +194,7 @@ describe('BunGateway', () => {
   test('should throw error for removeRoute (not implemented)', () => {
     expect(() => {
       gateway.removeRoute('/test')
-    }).toThrow('removeRoute is not implemented in 0http-bun')
+    }).toThrow('removeRoute is not implemented')
   })
 })
 

@@ -30,6 +30,7 @@
 import pino from 'pino'
 import type { LoggerOptions, Logger as PinoLogger } from 'pino'
 import type { Logger, LoggerConfig } from '../interfaces/logger'
+import { safeMerge } from '../security/utils'
 
 /**
  * Enhanced Pino logger with gateway-specific functionality
@@ -49,13 +50,15 @@ export class BunGateLogger implements Logger {
    * @param config - Logger configuration including level, format, and output options
    */
   constructor(config: LoggerConfig = {}) {
-    this.config = {
-      level: 'info',
-      format: 'json',
-      enableRequestLogging: true,
-      enableMetrics: true,
-      ...config,
-    }
+    this.config = safeMerge(
+      {
+        level: 'info',
+        format: 'json',
+        enableRequestLogging: true,
+        enableMetrics: true,
+      } as LoggerConfig,
+      config,
+    )
 
     // Configure Pino logger with gateway-optimized settings
     const pinoConfig: any = {

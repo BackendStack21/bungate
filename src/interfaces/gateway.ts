@@ -72,6 +72,19 @@ export interface ClusterConfig {
    * @default true
    */
   exitOnShutdown?: boolean
+
+  /**
+   * Allow-list of environment variable names to pass to workers.
+   * If provided, only these variables (plus the internal CLUSTER_* vars)
+   * are forwarded. This prevents secrets from being cloned into every worker.
+   */
+  allowedEnvVars?: string[]
+
+  /**
+   * Allow-list of worker script paths. If provided, the worker script must
+   * match one of these paths to prevent accidental execution of arbitrary files.
+   */
+  workerScriptAllowlist?: string[]
 }
 
 /**

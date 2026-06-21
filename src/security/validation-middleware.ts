@@ -7,6 +7,7 @@ import type { RequestHandler, ZeroRequest } from '../interfaces/middleware'
 import type { ValidationRules } from './types'
 import { InputValidator } from './input-validator'
 import { generateRequestId } from './utils'
+import { defaultLogger } from '../logger/pino-logger'
 
 /**
  * Configuration for validation middleware
@@ -118,7 +119,7 @@ export function createValidationMiddleware(
       return next()
     } catch (error) {
       // Handle unexpected errors during validation
-      console.error('Validation middleware error:', error)
+      defaultLogger.error('Validation middleware error', error as Error)
 
       return new Response(
         JSON.stringify({

@@ -53,11 +53,14 @@ function defaultExtractToken(req: ZeroRequest): string | null {
   if (!authHeader) return null
 
   const parts = authHeader.split(' ')
-  if (parts.length !== 2 || parts[0].toLowerCase() !== 'bearer') {
+  if (parts.length !== 2) return null
+  const scheme = parts[0]
+  const token = parts[1]
+  if (!scheme || !token || scheme.toLowerCase() !== 'bearer') {
     return null
   }
 
-  return parts[1]
+  return token
 }
 
 /**

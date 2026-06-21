@@ -36,10 +36,7 @@ import type {
 import type { Logger } from '../interfaces/logger'
 import { defaultLogger } from '../logger/pino-logger'
 import { SessionManager } from '../security/session-manager'
-import {
-  generateSecureRandomWithEntropy,
-  hasMinimumEntropy,
-} from '../security/utils'
+import { isValidIP, isIPInCIDR, safeMerge } from '../security/utils'
 import type { TrustedProxyValidator } from '../security/trusted-proxy'
 
 /**
@@ -77,6 +74,36 @@ interface Session {
   expiresAt: number
 }
 
+/** Minimum allowed health check interval (ms) */
+const MIN_HEALTH_CHECK_INTERVAL = 1000
+/** Maximum allowed health check interval (ms) */
+const MAX_HEALTH_CHECK_INTERVAL = 300000
+/** Maximum allowed health check timeout (ms) */
+const MAX_HEALTH_CHECK_TIMEOUT = 60000
+/** Maximum allowed failure/success thresholds */
+const MAX_HEALTH_THRESHOLD = 20
+/** Maximum health check response body read size (bytes) */
+const MAX_HEALTH_CHECK_BODY_SIZE = 4096
+
+/**
+ * Returns a cryptographically secure random integer in [0, max).
+ */
+function secureRandomInt(max: number): number {
+  if (max <= 0) return 0
+  const array = new Uint32Array(1)
+  crypto.getRandomValues(array)
+  return array[0]! % max
+}
+
+/**
+ * Returns a cryptographically secure random number in [0, 1).
+ */
+function secureRandom(): number {
+  const array = new Uint32Array(1)
+  crypto.getRandomValues(array)
+  return array[0]! / 0x100000000
+}
+
 /**
  * Production-ready HTTP Load Balancer Implementation
  *
@@ -111,9 +138,18 @@ export class HttpLoadBalancer implements LoadBalancer {
    * @param config - Load balancer configuration including strategy, targets, and options
    */
   constructor(config: LoadBalancerConfig) {
-    this.config = { ...config }
+    this.config = safeMerge(
+      {
+        strategy: 'round-robin',
+        targets: [],
+      } as LoadBalancerConfig,
+      config,
+    )
     this.logger = config.logger ?? defaultLogger
     this.trustedProxyValidator = config.trustedProxyValidator
+
+    // Validate and clamp health-check configuration
+    this.validateHealthCheckConfig()
 
     this.logger.info('Load balancer initialized', {
       strategy: config.strategy,
@@ -123,9 +159,19 @@ export class HttpLoadBalancer implements LoadBalancer {
       trustedProxyEnabled: !!this.trustedProxyValidator,
     })
 
-    // Initialize all configured targets
+    // Initialize all configured targets.
+    // Targets supplied at construction time default to healthy so the gateway
+    // can serve traffic immediately. Runtime-added targets (via addTarget) are
+    // treated more cautiously.
     for (const target of config.targets) {
-      this.addTarget(target)
+      const initialTarget: LoadBalancerTarget = {
+        ...target,
+        // Respect an explicitly-provided healthy flag (used by tests and by
+        // config reloads). When omitted, default to healthy so the gateway can
+        // serve traffic immediately.
+        healthy: (target as LoadBalancerTarget).healthy ?? true,
+      }
+      this.addTarget(initialTarget, true)
     }
 
     // Start health monitoring if enabled
@@ -146,24 +192,72 @@ export class HttpLoadBalancer implements LoadBalancer {
   }
 
   /**
+   * Validate and clamp health-check configuration to prevent DoS and logic errors.
+   */
+  private validateHealthCheckConfig(): void {
+    const hc = this.config.healthCheck
+    if (!hc?.enabled) return
+
+    let interval = hc.interval
+    let timeout = hc.timeout
+
+    if (interval < MIN_HEALTH_CHECK_INTERVAL) {
+      this.logger.warn('Health check interval too low; clamping to minimum', {
+        interval,
+        min: MIN_HEALTH_CHECK_INTERVAL,
+      })
+      interval = MIN_HEALTH_CHECK_INTERVAL
+    }
+    if (interval > MAX_HEALTH_CHECK_INTERVAL) {
+      this.logger.warn('Health check interval too high; clamping to maximum', {
+        interval,
+        max: MAX_HEALTH_CHECK_INTERVAL,
+      })
+      interval = MAX_HEALTH_CHECK_INTERVAL
+    }
+    if (timeout > MAX_HEALTH_CHECK_TIMEOUT) {
+      this.logger.warn('Health check timeout too high; clamping to maximum', {
+        timeout,
+        max: MAX_HEALTH_CHECK_TIMEOUT,
+      })
+      timeout = MAX_HEALTH_CHECK_TIMEOUT
+    }
+    if (timeout >= interval) {
+      this.logger.warn(
+        'Health check timeout must be less than interval; adjusting',
+        { timeout, interval },
+      )
+      timeout = Math.max(1, Math.floor(interval / 2))
+    }
+
+    hc.interval = interval
+    hc.timeout = timeout
+
+    if (hc.failureThreshold != null) {
+      hc.failureThreshold = Math.min(
+        Math.max(1, hc.failureThreshold),
+        MAX_HEALTH_THRESHOLD,
+      )
+    }
+    if (hc.successThreshold != null) {
+      hc.successThreshold = Math.min(
+        Math.max(1, hc.successThreshold),
+        MAX_HEALTH_THRESHOLD,
+      )
+    }
+  }
+
+  /**
    * Select the optimal target for the incoming request
    *
    * Uses the configured load balancing strategy to distribute requests intelligently
    * across healthy targets. Supports sticky sessions for session affinity.
    *
    * @param request - The incoming HTTP request to route
+   * @param clientIP - Optional pre-validated client IP from the gateway socket
    * @returns Selected target or null if no healthy targets available
-   *
-   * @example
-   * ```ts
-   * const target = loadBalancer.selectTarget(request)
-   * if (target) {
-   *   // Forward request to target.url
-   *   const response = await fetch(`${target.url}${request.url}`)
-   * }
-   * ```
    */
-  selectTarget(request: Request): LoadBalancerTarget | null {
+  selectTarget(request: Request, clientIP?: string): LoadBalancerTarget | null {
     const startTime = Date.now()
     const healthyTargets = this.getHealthyTargets()
 
@@ -188,16 +282,21 @@ export class HttpLoadBalancer implements LoadBalancer {
     }
 
     // Check for sticky session first
+    let stickySetCookie: string | undefined
     if (this.config.stickySession?.enabled) {
-      const stickyTarget = this.getStickyTarget(request)
-      if (stickyTarget) {
-        this.recordRequest(stickyTarget.url)
-        this.logger.logLoadBalancing(this.config.strategy, stickyTarget.url, {
-          reason: 'sticky-session',
-          duration: Date.now() - startTime,
-          healthyTargets: healthyTargets.length,
-        })
-        return stickyTarget
+      const stickyResult = this.getStickyTarget(request)
+      if (stickyResult?.target) {
+        this.recordRequest(stickyResult.target.url)
+        this.logger.logLoadBalancing(
+          this.config.strategy,
+          stickyResult.target.url,
+          {
+            reason: 'sticky-session',
+            duration: Date.now() - startTime,
+            healthyTargets: healthyTargets.length,
+          },
+        )
+        return stickyResult.target
       }
     }
 
@@ -218,7 +317,7 @@ export class HttpLoadBalancer implements LoadBalancer {
           selectedTarget = this.selectRandom(healthyTargets)
           break
         case 'ip-hash':
-          selectedTarget = this.selectIpHash(request, healthyTargets)
+          selectedTarget = this.selectIpHash(request, healthyTargets, clientIP)
           break
         case 'p2c':
         case 'power-of-two-choices':
@@ -246,7 +345,7 @@ export class HttpLoadBalancer implements LoadBalancer {
 
       // Create sticky session if enabled
       if (this.config.stickySession?.enabled) {
-        this.createStickySession(request, selectedTarget)
+        stickySetCookie = this.createStickySession(request, selectedTarget)
       }
 
       this.logger.logLoadBalancing(this.config.strategy, selectedTarget.url, {
@@ -254,9 +353,27 @@ export class HttpLoadBalancer implements LoadBalancer {
         healthyTargets: healthyTargets.length,
         totalRequests: this.totalRequests,
       })
+
+      // Attach Set-Cookie header via a non-enumerable property for the gateway
+      // to consume. This avoids leaking sticky-session state in the returned object.
+      if (stickySetCookie) {
+        Object.defineProperty(selectedTarget, '__stickySetCookie', {
+          value: stickySetCookie,
+          enumerable: false,
+          configurable: true,
+        })
+      }
     }
 
     return selectedTarget
+  }
+
+  /**
+   * Retrieves the Set-Cookie header generated for the last sticky session,
+   * if any. This is consumed by the gateway to send the cookie to the client.
+   */
+  getStickySessionCookie(target: LoadBalancerTarget): string | undefined {
+    return (target as any).__stickySetCookie
   }
 
   /**
@@ -266,32 +383,48 @@ export class HttpLoadBalancer implements LoadBalancer {
    * Can be used for dynamic scaling by adding targets at runtime.
    *
    * @param target - Target configuration to add
-   *
-   * @example
-   * ```ts
-   * loadBalancer.addTarget({
-   *   url: 'http://new-service:3000',
-   *   weight: 2,
-   *   metadata: { region: 'us-west-2' }
-   * })
-   * ```
    */
-  addTarget(target: LoadBalancerTarget): void {
+  addTarget(target: LoadBalancerTarget, isInitial = false): void {
+    const weight = this.normalizeWeight(target.weight)
+
     const internalTarget: InternalTarget = {
       ...target,
-      healthy: target.healthy ?? true,  // Default: new targets start healthy unless explicitly unhealthy
+      // Initial configuration targets are trusted and default to healthy so the
+      // gateway can serve traffic immediately. Runtime-added targets default to
+      // unhealthy when health checks are enabled until they pass probes.
+      healthy:
+        target.healthy ??
+        (isInitial ? true : this.config.healthCheck?.enabled ? false : true),
       requests: 0,
       errors: 0,
       totalResponseTime: 0,
       lastUsed: 0,
       consecutiveFailures: 0,
       consecutiveSuccesses: 0,
-      weight: target.weight ?? 1,
+      weight,
       connections: target.connections ?? 0,
       averageResponseTime: target.averageResponseTime ?? 0,
     }
 
     this.targets.set(target.url, internalTarget)
+  }
+
+  /**
+   * Validates and normalizes target weight.
+   */
+  private normalizeWeight(weight?: number): number {
+    if (weight == null) return 1
+    if (typeof weight !== 'number' || !isFinite(weight)) {
+      this.logger.warn('Invalid target weight; defaulting to 1', { weight })
+      return 1
+    }
+    if (weight <= 0) {
+      this.logger.warn('Target weight must be positive; defaulting to 1', {
+        weight,
+      })
+      return 1
+    }
+    return weight
   }
 
   /**
@@ -301,12 +434,6 @@ export class HttpLoadBalancer implements LoadBalancer {
    * Useful for maintenance, scaling down, or handling failed services.
    *
    * @param url - Target URL to remove from the pool
-   *
-   * @example
-   * ```ts
-   * // Remove a failed service
-   * loadBalancer.removeTarget('http://failed-service:3000')
-   * ```
    */
   removeTarget(url: string): void {
     this.targets.delete(url)
@@ -320,18 +447,13 @@ export class HttpLoadBalancer implements LoadBalancer {
    *
    * @param url - Target URL to update
    * @param healthy - New health status
-   *
-   * @example
-   * ```ts
-   * // Mark a target as unhealthy after circuit breaker opens
-   * loadBalancer.updateTargetHealth('http://service:3000', false)
-   * ```
    */
   updateTargetHealth(url: string, healthy: boolean): void {
-    const target = this.targets.get(url)
-    if (target) {
-      target.healthy = healthy
-      target.lastHealthCheck = Date.now()
+    const minHealthyTargets = this.config.healthCheck?.minHealthyTargets ?? 1
+    if (healthy) {
+      this.applyHealthState(url, true)
+    } else {
+      this.updateTargetHealthWithFloor(url, false, minHealthyTargets)
     }
   }
 
@@ -344,7 +466,7 @@ export class HttpLoadBalancer implements LoadBalancer {
    * @returns Array of all targets with runtime data
    */
   getTargets(): LoadBalancerTarget[] {
-    return Array.from(this.targets.values())
+    return Array.from(this.targets.values()).map((t) => this.sanitizeTarget(t))
   }
 
   /**
@@ -356,7 +478,28 @@ export class HttpLoadBalancer implements LoadBalancer {
    * @returns Array of healthy targets ready to handle requests
    */
   getHealthyTargets(): LoadBalancerTarget[] {
-    return Array.from(this.targets.values()).filter((target) => target.healthy)
+    return Array.from(this.targets.values())
+      .filter((target) => target.healthy)
+      .map((t) => this.sanitizeTarget(t))
+  }
+
+  /**
+   * Returns a shallow copy of a target with sensitive metadata stripped.
+   */
+  private sanitizeTarget(target: InternalTarget): LoadBalancerTarget {
+    const sanitized: LoadBalancerTarget = {
+      url: target.url,
+      healthy: target.healthy,
+      weight: target.weight,
+      connections: target.connections,
+      averageResponseTime: target.averageResponseTime,
+      lastHealthCheck: target.lastHealthCheck,
+    }
+    // Only expose metadata if explicitly configured to do so
+    if ((this.config as any).exposeMetadata && target.metadata) {
+      sanitized.metadata = target.metadata
+    }
+    return sanitized
   }
 
   /**
@@ -366,13 +509,6 @@ export class HttpLoadBalancer implements LoadBalancer {
    * Includes per-target statistics and overall performance data.
    *
    * @returns Statistics object with performance and health metrics
-   *
-   * @example
-   * ```ts
-   * const stats = loadBalancer.getStats()
-   * console.log(`Total requests: ${stats.totalRequests}`)
-   * console.log(`Healthy targets: ${stats.healthyTargets}/${stats.totalTargets}`)
-   * ```
    */
   getStats(): LoadBalancerStats {
     const targetStats: Record<string, any> = {}
@@ -405,9 +541,11 @@ export class HttpLoadBalancer implements LoadBalancer {
     }
 
     const interval = this.config.healthCheck.interval
+    // Add jitter (up to 10% of interval) to prevent thundering herds
+    const jitter = Math.floor(secureRandom() * interval * 0.1)
     this.healthCheckInterval = setInterval(() => {
       this.performHealthChecks()
-    }, interval)
+    }, interval + jitter)
   }
 
   /**
@@ -446,6 +584,26 @@ export class HttpLoadBalancer implements LoadBalancer {
     const target = this.targets.get(url)
     if (target) {
       target.connections = connections
+    }
+  }
+
+  /**
+   * Atomically increment the active connection count for a target.
+   */
+  incrementConnections(url: string): void {
+    const target = this.targets.get(url)
+    if (target) {
+      target.connections = (target.connections ?? 0) + 1
+    }
+  }
+
+  /**
+   * Atomically decrement the active connection count for a target.
+   */
+  decrementConnections(url: string): void {
+    const target = this.targets.get(url)
+    if (target) {
+      target.connections = Math.max(0, (target.connections ?? 0) - 1)
     }
   }
 
@@ -503,7 +661,7 @@ export class HttpLoadBalancer implements LoadBalancer {
       (sum, target) => sum + (target.weight ?? 1),
       0,
     )
-    let random = Math.random() * totalWeight
+    let random = secureRandom() * totalWeight
 
     for (const target of targets) {
       random -= target.weight ?? 1
@@ -519,19 +677,19 @@ export class HttpLoadBalancer implements LoadBalancer {
     if (targets.length === 0) {
       throw new Error('No targets available for random selection')
     }
-    const randomIndex = Math.floor(Math.random() * targets.length)
+    const randomIndex = secureRandomInt(targets.length)
     return targets[randomIndex]! // Guaranteed to exist due to length check
   }
 
   private selectIpHash(
     request: Request,
     targets: LoadBalancerTarget[],
+    clientIP?: string,
   ): LoadBalancerTarget {
     if (targets.length === 0) {
       throw new Error('No targets available for IP hash selection')
     }
-    // Simple hash based on IP (would need actual IP extraction in real scenario)
-    const clientId = this.getClientId(request)
+    const clientId = this.getClientId(request, clientIP)
     const hash = this.simpleHash(clientId)
     const index = hash % targets.length
     return targets[index]! // Guaranteed to exist due to length check
@@ -541,8 +699,8 @@ export class HttpLoadBalancer implements LoadBalancer {
     targets: LoadBalancerTarget[],
   ): LoadBalancerTarget {
     // Sample two distinct targets at random and choose the better one by connections then latency
-    const i = Math.floor(Math.random() * targets.length)
-    let j = Math.floor(Math.random() * targets.length)
+    const i = secureRandomInt(targets.length)
+    let j = secureRandomInt(targets.length)
     if (j === i) j = (j + 1) % targets.length
     const a = targets[i]!
     const b = targets[j]!
@@ -609,34 +767,56 @@ export class HttpLoadBalancer implements LoadBalancer {
     }
   }
 
-  private getStickyTarget(request: Request): LoadBalancerTarget | null {
+  private getStickyTarget(request: Request): {
+    target: LoadBalancerTarget | null
+  } {
     if (!this.config.stickySession?.enabled) {
-      return null
+      return { target: null }
     }
 
     const sessionId = this.getSessionId(request)
     if (!sessionId) {
-      return null
+      return { target: null }
     }
 
     const session = this.sessions.get(sessionId)
     if (!session || Date.now() > session.expiresAt) {
-      return null
+      // Unknown / expired session IDs are not allowed to create new affinity.
+      return { target: null }
     }
 
     const target = this.targets.get(session.targetUrl)
-    return target && target.healthy ? target : null
+    return {
+      target: target && target.healthy ? this.sanitizeTarget(target) : null,
+    }
   }
 
   private createStickySession(
     request: Request,
     target: LoadBalancerTarget,
-  ): void {
+  ): string | undefined {
     if (!this.config.stickySession?.enabled) {
-      return
+      return undefined
     }
 
-    const sessionId = this.getSessionId(request) || this.generateSessionId()
+    const existingSessionId = this.getSessionId(request)
+
+    // If the client already has a valid session for this target, refresh it
+    if (existingSessionId) {
+      const existing = this.sessions.get(existingSessionId)
+      if (
+        existing &&
+        existing.targetUrl === target.url &&
+        Date.now() <= existing.expiresAt
+      ) {
+        existing.expiresAt =
+          Date.now() + (this.config.stickySession.ttl ?? 3600000)
+        return this.buildStickySetCookie(existingSessionId)
+      }
+    }
+
+    // Generate a new cryptographically secure session ID server-side
+    const sessionId = this.generateSessionId()
     const ttl = this.config.stickySession.ttl ?? 3600000 // 1 hour default
 
     const session: Session = {
@@ -646,6 +826,19 @@ export class HttpLoadBalancer implements LoadBalancer {
     }
 
     this.sessions.set(sessionId, session)
+    return this.buildStickySetCookie(sessionId)
+  }
+
+  private buildStickySetCookie(sessionId: string): string {
+    const cookieName = this.config.stickySession?.cookieName ?? 'lb-session'
+    const ttl = this.config.stickySession?.ttl ?? 3600000
+    const parts: string[] = [`${cookieName}=${sessionId}`]
+    parts.push(`Max-Age=${Math.floor(ttl / 1000)}`)
+    parts.push('Path=/')
+    parts.push('HttpOnly')
+    parts.push('Secure')
+    parts.push('SameSite=Strict')
+    return parts.join('; ')
   }
 
   private getSessionId(request: Request): string | null {
@@ -658,8 +851,11 @@ export class HttpLoadBalancer implements LoadBalancer {
 
     const cookies = cookieHeader.split(';').map((c) => c.trim())
     for (const cookie of cookies) {
-      const [name, value] = cookie.split('=')
-      if (name === cookieName && value !== undefined) {
+      const idx = cookie.indexOf('=')
+      if (idx === -1) continue
+      const name = cookie.slice(0, idx).trim()
+      const value = cookie.slice(idx + 1).trim()
+      if (name === cookieName && value) {
         return value
       }
     }
@@ -674,70 +870,43 @@ export class HttpLoadBalancer implements LoadBalancer {
     }
 
     // Fallback: Generate with minimum 128 bits of entropy
-    // 16 bytes = 128 bits, hex encoding = 32 characters
-    const sessionId = generateSecureRandomWithEntropy(128)
-
-    // Validate entropy meets minimum requirement
-    if (!hasMinimumEntropy(sessionId, 128)) {
-      throw new Error(
-        'Generated session ID does not meet minimum 128-bit entropy requirement',
-      )
-    }
-
-    return sessionId
+    const array = new Uint8Array(16)
+    crypto.getRandomValues(array)
+    return Array.from(array, (b) => b.toString(16).padStart(2, '0')).join('')
   }
 
-  private getClientId(request: Request): string {
-    // If trusted proxy validator is enabled, use it for secure IP extraction
-    if (this.trustedProxyValidator) {
-      const headers = request.headers
-
-      // Get the direct connection IP (fallback to headers for now)
-      const directIP =
-        headers.get('x-real-ip') ||
-        headers.get('cf-connecting-ip') ||
-        headers.get('x-client-ip') ||
-        'unknown'
-
-      // Use trusted proxy validator to extract client IP
-      const clientIP = this.trustedProxyValidator.extractClientIP(
-        request,
-        directIP,
-      )
-
-      // Log suspicious forwarded headers from untrusted proxies
-      const xForwardedFor =
-        headers.get('x-forwarded-for') || headers.get('X-Forwarded-For')
-      if (
-        xForwardedFor &&
-        !this.trustedProxyValidator.validateProxy(directIP)
-      ) {
-        this.logger.warn(
-          'Suspicious forwarded header from untrusted proxy in load balancer',
-          {
-            xForwardedFor,
-            directIP,
-            extractedIP: clientIP,
-          },
-        )
-      }
-
+  private getClientId(request: Request, clientIP?: string): string {
+    // Prefer the pre-validated client IP provided by the gateway socket
+    if (clientIP && clientIP !== 'unknown') {
       return clientIP
     }
 
-    // Fallback to legacy behavior if trusted proxy validator is not enabled
+    // If a trusted proxy validator is enabled, use it for secure IP extraction
+    if (this.trustedProxyValidator) {
+      const directIP = 'unknown'
+      const extractedIP = this.trustedProxyValidator.extractClientIP(
+        request,
+        directIP,
+      )
+      if (extractedIP && extractedIP !== 'unknown') {
+        return extractedIP
+      }
+    }
+
+    // Fallback to headers only as a last resort (not recommended in production)
     const headers = request.headers
-    const xff = headers.get('x-forwarded-for') || headers.get('X-Forwarded-For')
+    const xff = headers.get('x-forwarded-for')
     if (xff) {
-      const ip = xff.split(',')[0]!.trim()
-      if (ip) return ip
+      const parts = xff.split(',').map((ip) => ip.trim())
+      const ip = parts[parts.length - 1]
+      if (ip && isValidIP(ip)) return ip
     }
     const realIp =
       headers.get('x-real-ip') ||
       headers.get('cf-connecting-ip') ||
       headers.get('x-client-ip') ||
       ''
-    if (realIp) return realIp
+    if (realIp && isValidIP(realIp)) return realIp
     const userAgent = headers.get('user-agent') ?? ''
     const accept = headers.get('accept') ?? ''
     return userAgent + accept
@@ -766,7 +935,10 @@ export class HttpLoadBalancer implements LoadBalancer {
 
     const failureThreshold = healthCheckConfig.failureThreshold ?? 3
     const successThreshold = healthCheckConfig.successThreshold ?? 2
-    const minHealthyTargets = healthCheckConfig.minHealthyTargets ?? 1
+    const minHealthyTargets = Math.min(
+      healthCheckConfig.minHealthyTargets ?? 1,
+      Math.max(1, this.targets.size),
+    )
 
     this.logger.debug('Starting health checks', {
       targetCount: this.targets.size,
@@ -782,6 +954,34 @@ export class HttpLoadBalancer implements LoadBalancer {
         const startTime = Date.now()
         try {
           const url = new URL(target.url)
+
+          // Validate scheme
+          const allowedSchemes = healthCheckConfig.allowedSchemes ?? [
+            'http',
+            'https',
+          ]
+          if (!allowedSchemes.includes(url.protocol.replace(':', ''))) {
+            throw new Error(
+              `Health check URL scheme not allowed: ${url.protocol}`,
+            )
+          }
+
+          // Validate host
+          const allowedHosts = healthCheckConfig.allowedHosts
+          if (allowedHosts && allowedHosts.length > 0) {
+            const hostAllowed = allowedHosts.some((allowed) => {
+              if (allowed.includes('/')) {
+                return isIPInCIDR(url.hostname, allowed)
+              }
+              return url.hostname === allowed
+            })
+            if (!hostAllowed) {
+              throw new Error(
+                `Health check target host not allowed: ${url.hostname}`,
+              )
+            }
+          }
+
           url.pathname = healthCheckConfig.path
 
           const controller = new AbortController()
@@ -790,9 +990,15 @@ export class HttpLoadBalancer implements LoadBalancer {
             healthCheckConfig.timeout,
           )
 
+          const method = healthCheckConfig.method ?? 'GET'
+          if (method !== 'GET' && method !== 'HEAD') {
+            throw new Error(`Invalid health check method: ${method}`)
+          }
+
           const response = await fetch(url.toString(), {
             signal: controller.signal,
-            method: healthCheckConfig.method ?? 'GET',
+            method,
+            redirect: 'manual',
           })
 
           clearTimeout(timeoutId)
@@ -801,9 +1007,12 @@ export class HttpLoadBalancer implements LoadBalancer {
           const isHealthy =
             response.status === (healthCheckConfig.expectedStatus ?? 200)
 
-          // Check response body if expected
+          // Check response body if expected, with bounded read size
           if (isHealthy && healthCheckConfig.expectedBody) {
-            const body = await response.text()
+            const body = await this.readBoundedResponse(
+              response,
+              MAX_HEALTH_CHECK_BODY_SIZE,
+            )
             const bodyMatches = body.includes(healthCheckConfig.expectedBody)
 
             if (bodyMatches) {
@@ -816,9 +1025,13 @@ export class HttpLoadBalancer implements LoadBalancer {
 
             // Apply thresholds
             if (target.consecutiveFailures >= failureThreshold) {
-              this.updateTargetHealthWithFloor(target.url, false, minHealthyTargets)
+              this.updateTargetHealthWithFloor(
+                target.url,
+                false,
+                minHealthyTargets,
+              )
             } else if (target.consecutiveSuccesses >= successThreshold) {
-              this.updateTargetHealth(target.url, true)
+              this.applyHealthState(target.url, true)
             }
 
             this.logger.logHealthCheck(target.url, bodyMatches, duration)
@@ -833,9 +1046,13 @@ export class HttpLoadBalancer implements LoadBalancer {
 
             // Apply thresholds
             if (target.consecutiveFailures >= failureThreshold) {
-              this.updateTargetHealthWithFloor(target.url, false, minHealthyTargets)
+              this.updateTargetHealthWithFloor(
+                target.url,
+                false,
+                minHealthyTargets,
+              )
             } else if (target.consecutiveSuccesses >= successThreshold) {
-              this.updateTargetHealth(target.url, true)
+              this.applyHealthState(target.url, true)
             }
 
             this.logger.logHealthCheck(
@@ -853,7 +1070,11 @@ export class HttpLoadBalancer implements LoadBalancer {
 
           // Only mark unhealthy after threshold is met
           if (target.consecutiveFailures >= failureThreshold) {
-            this.updateTargetHealthWithFloor(target.url, false, minHealthyTargets)
+            this.updateTargetHealthWithFloor(
+              target.url,
+              false,
+              minHealthyTargets,
+            )
           }
 
           this.logger.logHealthCheck(
@@ -870,6 +1091,61 @@ export class HttpLoadBalancer implements LoadBalancer {
   }
 
   /**
+   * Reads at most `maxBytes` from a response body to prevent memory exhaustion.
+   */
+  private async readBoundedResponse(
+    response: Response,
+    maxBytes: number,
+  ): Promise<string> {
+    const reader = response.body?.getReader()
+    if (!reader) {
+      return ''
+    }
+
+    const chunks: Uint8Array[] = []
+    let total = 0
+    try {
+      while (total < maxBytes) {
+        const { done, value } = await reader.read()
+        if (done || !value) break
+        const remaining = maxBytes - total
+        const chunk =
+          value.length > remaining ? value.slice(0, remaining) : value
+        chunks.push(chunk)
+        total += chunk.length
+      }
+    } finally {
+      reader.releaseLock()
+    }
+
+    const combined = new Uint8Array(total)
+    let offset = 0
+    for (const chunk of chunks) {
+      combined.set(chunk, offset)
+      offset += chunk.length
+    }
+
+    return new TextDecoder().decode(combined)
+  }
+
+  /**
+   * Apply a health state change directly. Used for healthy transitions and
+   * internal state updates that do not need floor enforcement.
+   */
+  private applyHealthState(url: string, healthy: boolean): void {
+    const target = this.targets.get(url)
+    if (target) {
+      target.healthy = healthy
+      target.lastHealthCheck = Date.now()
+      if (healthy) {
+        target.consecutiveFailures = 0
+      } else {
+        target.consecutiveSuccesses = 0
+      }
+    }
+  }
+
+  /**
    * Update target health with minimum healthy target floor.
    * Prevents cascade failures by ensuring at least minHealthy targets stay up.
    */
@@ -879,7 +1155,7 @@ export class HttpLoadBalancer implements LoadBalancer {
     minHealthyTargets: number,
   ): void {
     if (healthy) {
-      this.updateTargetHealth(url, true)
+      this.applyHealthState(url, true)
       return
     }
 
@@ -901,7 +1177,7 @@ export class HttpLoadBalancer implements LoadBalancer {
       return // Refuse to mark unhealthy — would violate the floor
     }
 
-    this.updateTargetHealth(url, false)
+    this.applyHealthState(url, false)
   }
 
   private startSessionCleanup(): void {

@@ -1,3 +1,11 @@
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * FOR BENCHMARKING ONLY — NOT FOR PRODUCTION
+ * This file intentionally disables security features to maximize throughput.
+ * Do not use this configuration as a template for production deployments.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+
 import { BunGateway } from './src'
 import { BunGateLogger } from './src'
 import { cpus } from 'os'

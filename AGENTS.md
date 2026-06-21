@@ -81,6 +81,7 @@ src/
 ### Path Validation (input-validator.ts + utils.ts)
 
 **Two-pass validation** against double-encoding attacks:
+
 1. **First pass:** Check raw path against `blockedPatterns` (catches null bytes, `../`)
 2. **Recursive decode:** `recursiveDecodeURIComponent()` decodes up to 5 layers until stable
 3. **Second pass:** Check fully-decoded path (catches `%252f` → `%2f` → `/`)
@@ -90,6 +91,7 @@ Never validate before decoding — attackers hide behind encoding layers.
 ### Health Checks (http-load-balancer.ts)
 
 Threshold-based to prevent flapping and cascade failures:
+
 - `failureThreshold` (default 3): consecutive failures before marking unhealthy
 - `successThreshold` (default 2): consecutive successes before marking healthy again
 - `minHealthyTargets` (default 1): floor check — refuses to mark the last healthy target down
@@ -105,6 +107,7 @@ secure header priority (`cf-connecting-ip` > `x-real-ip`).
 ### Error Handling
 
 Global error handler registered on the 0http-bun router. In production:
+
 - Returns sanitized `{"error":"Internal server error"}` with status 500
 - Never leaks stack traces or internal file paths
 - Logs full error details internally
@@ -112,7 +115,15 @@ Global error handler registered on the 0http-bun router. In production:
 ### Blocked Patterns (config.ts)
 
 ```typescript
-blockedPatterns: [/\.\./, /%2e%2e/i, /%2f/i, /%5c/i, /%00/, /\0/, /%25%32%[fF]/i]
+blockedPatterns: [
+  /\.\./,
+  /%2e%2e/i,
+  /%2f/i,
+  /%5c/i,
+  /%00/,
+  /\0/,
+  /%25%32%[fF]/i,
+]
 ```
 
 Covers: raw `..`, encoded `../`, encoded `/`, encoded `\`, null byte, double-encoded `/`.

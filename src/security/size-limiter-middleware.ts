@@ -7,6 +7,7 @@ import type { RequestHandler, ZeroRequest } from '../interfaces/middleware'
 import type { SizeLimits } from './config'
 import { SizeLimiter } from './size-limiter'
 import { generateRequestId } from './utils'
+import { defaultLogger } from '../logger/pino-logger'
 
 /**
  * Configuration for size limiter middleware
@@ -67,7 +68,7 @@ export function createSizeLimiterMiddleware(
       if (!result.valid && result.errors) {
         // Determine the most appropriate status code
         // Use the first error to determine status code
-        const statusCode = getStatusCodeForError(result.errors[0])
+        const statusCode = getStatusCodeForError(result.errors[0] ?? '')
 
         // Use custom error handler if provided
         if (onSizeExceeded) {
@@ -108,7 +109,7 @@ export function createSizeLimiterMiddleware(
       return next()
     } catch (error) {
       // Handle unexpected errors during validation
-      console.error('Size limiter middleware error:', error)
+      defaultLogger.error('Size limiter middleware error', error as Error)
 
       return new Response(
         JSON.stringify({

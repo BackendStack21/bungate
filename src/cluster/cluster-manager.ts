@@ -100,7 +100,61 @@ export class ClusterManager {
       ...config,
     }
     this.logger = logger
-    this.workerScript = workerScript || process.argv[1] || 'worker.js'
+
+    const resolvedScript = workerScript || process.argv[1] || 'worker.js'
+    this.workerScript = this.validateWorkerScript(resolvedScript)
+  }
+
+  /**
+   * Validates the worker script path against an allow-list, if configured.
+   */
+  private validateWorkerScript(script: string): string {
+    if (
+      this.config.workerScriptAllowlist &&
+      this.config.workerScriptAllowlist.length > 0
+    ) {
+      const allowlist = this.config.workerScriptAllowlist
+      if (!allowlist.includes(script)) {
+        throw new Error(
+          `Worker script "${script}" is not in the configured allow-list`,
+        )
+      }
+    }
+    return script
+  }
+
+  /**
+   * Builds the environment object for a worker.
+   *
+   * If allowedEnvVars is configured, only those variables are forwarded.
+   * Otherwise, a curated subset of safe variables is passed by default.
+   */
+  private buildWorkerEnv(id: number): Record<string, string> {
+    const baseEnv: Record<string, string> = {
+      CLUSTER_WORKER: 'true',
+      CLUSTER_WORKER_ID: id.toString(),
+    }
+
+    const allowed = this.config.allowedEnvVars
+    if (allowed && allowed.length > 0) {
+      for (const key of allowed) {
+        const value = process.env[key]
+        if (value !== undefined) {
+          baseEnv[key] = value
+        }
+      }
+      return baseEnv
+    }
+
+    // Default safe subset — avoid cloning secrets into every worker.
+    const safeKeys = ['NODE_ENV', 'BUN_ENV', 'PATH', 'HOME', 'USER', 'SHELL']
+    for (const key of safeKeys) {
+      const value = process.env[key]
+      if (value !== undefined) {
+        baseEnv[key] = value
+      }
+    }
+    return baseEnv
   }
 
   /**
@@ -154,13 +208,37 @@ export class ClusterManager {
     try {
       const worker = spawn({
         cmd: [process.execPath, this.workerScript],
-        env: {
-          ...process.env,
-          CLUSTER_WORKER: 'true',
-          CLUSTER_WORKER_ID: id.toString(),
-        },
-        stdio: ['inherit', 'inherit', 'inherit'],
+        env: this.buildWorkerEnv(id),
+        stdio: ['ignore', 'pipe', 'pipe'],
       })
+
+      // Route worker stdout/stderr through the master logger with sanitization
+      const stdoutReader = worker.stdout?.getReader()
+      const stderrReader = worker.stderr?.getReader()
+
+      const pumpStream = async (
+        reader: ReadableStreamDefaultReader<any> | undefined,
+        level: 'info' | 'error',
+      ) => {
+        if (!reader) return
+        const decoder = new TextDecoder()
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          const text = decoder.decode(value, { stream: true }).trimEnd()
+          if (!text) continue
+          for (const line of text.split('\n')) {
+            if (level === 'error') {
+              this.logger?.error(`Worker ${id}: ${line}`)
+            } else {
+              this.logger?.info(`Worker ${id}: ${line}`)
+            }
+          }
+        }
+      }
+
+      pumpStream(stdoutReader as any, 'info').catch(() => {})
+      pumpStream(stderrReader as any, 'error').catch(() => {})
 
       const workerInfo: WorkerInfo = {
         id,

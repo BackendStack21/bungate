@@ -101,24 +101,32 @@ import { BunGateLogger } from '../src/logger/pino-logger'
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Load secrets from environment variables in production
+ * Load secrets from environment variables.
+ * This example WILL NOT START without the required environment variables.
  * Never hardcode secrets in your code!
  */
+function requireEnv(name: string): string {
+  const value = process.env[name]
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`)
+  }
+  return value
+}
+
 const config = {
   // TLS Certificates
   tlsCert: process.env.TLS_CERT_PATH || './examples/cert.pem',
   tlsKey: process.env.TLS_KEY_PATH || './examples/key.pem',
 
   // JWT Secrets (use strong, random keys in production)
-  jwtPrimary: process.env.JWT_SECRET_PRIMARY || 'primary-secret-key',
-  jwtOld: process.env.JWT_SECRET_OLD || 'old-secret-key',
+  jwtPrimary: requireEnv('JWT_SECRET_PRIMARY'),
+  jwtOld: requireEnv('JWT_SECRET_OLD'),
 
   // API Keys
-  publicApiKeys: (process.env.PUBLIC_API_KEYS || '').split(',').filter(Boolean)
-    .length
-    ? process.env.PUBLIC_API_KEYS!.split(',')
-    : ['public-key-1', 'public-key-2', 'public-key-3'],
-  metricsApiKey: process.env.METRICS_API_KEY || 'metrics-secret-key',
+  publicApiKeys: requireEnv('PUBLIC_API_KEYS')
+    .split(',')
+    .map((k) => k.trim()),
+  metricsApiKey: requireEnv('METRICS_API_KEY'),
 
   // Server Ports
   httpsPort: parseInt(process.env.HTTPS_PORT || '3443'),

@@ -5,6 +5,7 @@
 
 import type { SizeLimits } from './config'
 import type { ValidationResult } from './types'
+import { safeMerge } from './utils'
 
 /**
  * Default size limits based on RFC recommendations
@@ -24,14 +25,16 @@ export class SizeLimiter {
   private limits: Required<SizeLimits>
 
   constructor(limits?: Partial<SizeLimits>) {
-    this.limits = {
-      ...DEFAULT_SIZE_LIMITS,
-      ...limits,
-    }
+    this.limits = safeMerge(DEFAULT_SIZE_LIMITS, limits) as Required<SizeLimits>
   }
 
   /**
-   * Validates request body size
+   * Validates request body size.
+   *
+   * Checks Content-Length first. In production, Bun.serve's maxRequestBodySize
+   * (configured by the gateway) provides defense-in-depth against chunked or
+   * mismatched Content-Length bodies. The middleware layer cannot safely consume
+   * and re-attach the body stream because Request.body is read-only.
    */
   async validateBodySize(req: Request): Promise<ValidationResult> {
     const contentLength = req.headers.get('content-length')

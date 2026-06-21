@@ -439,7 +439,7 @@ describe('HttpLoadBalancer', () => {
         targets: [getTarget(0)],
         healthCheck: {
           enabled: true,
-          interval: 100, // Very short interval for testing
+          interval: 1000, // Must be >= production minimum of 1000ms
           timeout: 1000,
           path: '/health',
           expectedStatus: 200,
@@ -448,8 +448,8 @@ describe('HttpLoadBalancer', () => {
 
       loadBalancer = createLoadBalancer(config)
 
-      // Wait for health check to run
-      await new Promise((resolve) => setTimeout(resolve, 600))
+      // Wait for multiple health checks to run (interval + jitter)
+      await new Promise((resolve) => setTimeout(resolve, 3500))
 
       expect(fetchCallCount).toBeGreaterThan(0)
 
@@ -497,7 +497,7 @@ describe('HttpLoadBalancer', () => {
         targets: [getTarget(0)],
         healthCheck: {
           enabled: true,
-          interval: 100,
+          interval: 1000, // Must be >= production minimum of 1000ms
           timeout: 50, // Very short timeout
           path: '/health',
         },
@@ -505,8 +505,8 @@ describe('HttpLoadBalancer', () => {
 
       loadBalancer = createLoadBalancer(config)
 
-      // Wait for health check to run and fail
-      await new Promise((resolve) => setTimeout(resolve, 600))
+      // Wait for enough health checks to fail and cross the failure threshold
+      await new Promise((resolve) => setTimeout(resolve, 3500))
 
       const stats = loadBalancer.getStats()
       // Health check should have marked target as unhealthy
@@ -539,7 +539,7 @@ describe('HttpLoadBalancer', () => {
         targets: [getTarget(0)],
         healthCheck: {
           enabled: true,
-          interval: 100,
+          interval: 1000, // Must be >= production minimum of 1000ms
           timeout: 50, // Short timeout to trigger abort
           path: '/health',
         },
@@ -547,8 +547,8 @@ describe('HttpLoadBalancer', () => {
 
       loadBalancer = createLoadBalancer(config)
 
-      // Wait for health check to timeout
-      await new Promise((resolve) => setTimeout(resolve, 600))
+      // Wait for enough aborted health checks to cross the failure threshold
+      await new Promise((resolve) => setTimeout(resolve, 3500))
 
       const stats = loadBalancer.getStats()
       expect(stats.healthyTargets).toBe(0) // Should be marked unhealthy due to timeout
@@ -1762,7 +1762,9 @@ describe('HttpLoadBalancer', () => {
       loadBalancer = createLoadBalancer(config)
 
       // Directly test the private helper
-      const betterByLoadThenLatency = (loadBalancer as any).betterByLoadThenLatency.bind(loadBalancer)
+      const betterByLoadThenLatency = (
+        loadBalancer as any
+      ).betterByLoadThenLatency.bind(loadBalancer)
       const result = betterByLoadThenLatency(t1, t2)
       expect(result.url).toBe(t2.url) // t2 has fewer connections
     })
@@ -1790,7 +1792,9 @@ describe('HttpLoadBalancer', () => {
 
       loadBalancer = createLoadBalancer(config)
 
-      const betterByLoadThenLatency = (loadBalancer as any).betterByLoadThenLatency.bind(loadBalancer)
+      const betterByLoadThenLatency = (
+        loadBalancer as any
+      ).betterByLoadThenLatency.bind(loadBalancer)
       const result = betterByLoadThenLatency(t1, t2)
       // Same connections, so tie-break by latency — t2 has lower latency
       expect(result.url).toBe(t2.url)
@@ -1848,7 +1852,9 @@ describe('HttpLoadBalancer', () => {
       loadBalancer = createLoadBalancer(config)
 
       // Directly call the private method for deterministic test
-      const selectByLatency = (loadBalancer as any).selectByLatency.bind(loadBalancer)
+      const selectByLatency = (loadBalancer as any).selectByLatency.bind(
+        loadBalancer,
+      )
       const result = selectByLatency([t1, t2, t3])
       expect(result.url).toBe(t2.url) // t2 has lowest latency (50)
     })
@@ -1877,7 +1883,9 @@ describe('HttpLoadBalancer', () => {
       loadBalancer = createLoadBalancer(config)
 
       // When all latencies are 0, should fall back to round-robin
-      const selectByLatency = (loadBalancer as any).selectByLatency.bind(loadBalancer)
+      const selectByLatency = (loadBalancer as any).selectByLatency.bind(
+        loadBalancer,
+      )
       const result1 = selectByLatency([t1, t2])
       const result2 = selectByLatency([t1, t2])
 
@@ -1909,7 +1917,9 @@ describe('HttpLoadBalancer', () => {
 
       loadBalancer = createLoadBalancer(config)
 
-      const selectByLatency = (loadBalancer as any).selectByLatency.bind(loadBalancer)
+      const selectByLatency = (loadBalancer as any).selectByLatency.bind(
+        loadBalancer,
+      )
       const result = selectByLatency([t1, t2])
       // t2 has explicit latency 100, t1 has undefined (treated as Infinity)
       expect(result.url).toBe(t2.url)
@@ -1947,7 +1957,9 @@ describe('HttpLoadBalancer', () => {
 
       loadBalancer = createLoadBalancer(config)
 
-      const selectWLC = (loadBalancer as any).selectWeightedLeastConnections.bind(loadBalancer)
+      const selectWLC = (
+        loadBalancer as any
+      ).selectWeightedLeastConnections.bind(loadBalancer)
       const result = selectWLC([t1, t2, t3])
       // t2 has the best score (1 vs 3 vs 3.67)
       expect(result.url).toBe(t2.url)
@@ -1976,7 +1988,9 @@ describe('HttpLoadBalancer', () => {
 
       loadBalancer = createLoadBalancer(config)
 
-      const selectWLC = (loadBalancer as any).selectWeightedLeastConnections.bind(loadBalancer)
+      const selectWLC = (
+        loadBalancer as any
+      ).selectWeightedLeastConnections.bind(loadBalancer)
       const result = selectWLC([t1, t2])
       // Same score, tie-break by latency: t2 has lower latency
       expect(result.url).toBe(t2.url)
@@ -2005,7 +2019,9 @@ describe('HttpLoadBalancer', () => {
 
       loadBalancer = createLoadBalancer(config)
 
-      const selectWLC = (loadBalancer as any).selectWeightedLeastConnections.bind(loadBalancer)
+      const selectWLC = (
+        loadBalancer as any
+      ).selectWeightedLeastConnections.bind(loadBalancer)
       const result = selectWLC([t1, t2])
       // t1 score = 1/1 = 1, t2 score = 6/2 = 3 => t1 is better
       expect(result.url).toBe(t1.url)
@@ -2020,7 +2036,9 @@ describe('HttpLoadBalancer', () => {
       }
 
       loadBalancer = createLoadBalancer(config)
-      const betterByLatency = (loadBalancer as any).betterByLatency.bind(loadBalancer)
+      const betterByLatency = (loadBalancer as any).betterByLatency.bind(
+        loadBalancer,
+      )
 
       const a: LoadBalancerTarget = {
         url: 'http://lat-a.example.com',
@@ -2044,7 +2062,9 @@ describe('HttpLoadBalancer', () => {
       }
 
       loadBalancer = createLoadBalancer(config)
-      const betterByLatency = (loadBalancer as any).betterByLatency.bind(loadBalancer)
+      const betterByLatency = (loadBalancer as any).betterByLatency.bind(
+        loadBalancer,
+      )
 
       const a: LoadBalancerTarget = {
         url: 'http://lat-c.example.com',
@@ -2069,7 +2089,9 @@ describe('HttpLoadBalancer', () => {
       }
 
       loadBalancer = createLoadBalancer(config)
-      const betterByLatency = (loadBalancer as any).betterByLatency.bind(loadBalancer)
+      const betterByLatency = (loadBalancer as any).betterByLatency.bind(
+        loadBalancer,
+      )
 
       const a: LoadBalancerTarget = {
         url: 'http://lat-e.example.com',
@@ -2094,7 +2116,9 @@ describe('HttpLoadBalancer', () => {
       }
 
       loadBalancer = createLoadBalancer(config)
-      const betterByLatency = (loadBalancer as any).betterByLatency.bind(loadBalancer)
+      const betterByLatency = (loadBalancer as any).betterByLatency.bind(
+        loadBalancer,
+      )
 
       const a: LoadBalancerTarget = {
         url: 'http://lat-g.example.com',

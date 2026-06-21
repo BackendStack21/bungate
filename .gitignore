@@ -145,4 +145,6 @@ results/
 
 .plan.md
 
-sec-findings.md
+sec-findings.md*.pem
+*.key
+examples/cert.*

@@ -286,6 +286,33 @@ export class SessionManager {
   }
 
   /**
+   * Rotates the session ID for an existing session.
+   *
+   * Call this after authentication or any privilege escalation to prevent
+   * session fixation attacks.
+   */
+  rotateSessionId(sessionId: string): Session | null {
+    const session = this.getSession(sessionId)
+    if (!session) {
+      return null
+    }
+
+    this.deleteSession(sessionId)
+
+    const newSessionId = this.generateSessionId()
+    const now = Date.now()
+    const rotatedSession: Session = {
+      ...session,
+      id: newSessionId,
+      createdAt: now,
+      expiresAt: now + this.config.ttl,
+    }
+
+    this.sessions.set(newSessionId, rotatedSession)
+    return rotatedSession
+  }
+
+  /**
    * Starts automatic cleanup of expired sessions
    */
   private startCleanup(): void {

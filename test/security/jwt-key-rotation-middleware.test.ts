@@ -30,7 +30,7 @@ describe('createJWTKeyRotationMiddleware', () => {
   describe('backward compatibility with single secret', () => {
     test('should accept single secret string', async () => {
       const middleware = createJWTKeyRotationMiddleware({
-        config: 'my-secret-key',
+        config: 'my-secret-key-at-least-32-bytes-long-secret',
       })
 
       expect(middleware).toBeDefined()
@@ -38,11 +38,13 @@ describe('createJWTKeyRotationMiddleware', () => {
     })
 
     test('should verify token with single secret string', async () => {
-      const signer = createTokenSigner({ config: 'my-secret-key' })
+      const signer = createTokenSigner({
+        config: 'my-secret-key-at-least-32-bytes-long-secret',
+      })
       const token = await signer({ userId: '123' })
 
       const middleware = createJWTKeyRotationMiddleware({
-        config: 'my-secret-key',
+        config: 'my-secret-key-at-least-32-bytes-long-secret',
       })
 
       const req = createMockRequest('http://localhost/api/test', {
@@ -63,8 +65,16 @@ describe('createJWTKeyRotationMiddleware', () => {
     test('should verify token with primary key', async () => {
       const config: JWTKeyConfig = {
         secrets: [
-          { key: 'new-key', algorithm: 'HS256', primary: true },
-          { key: 'old-key', algorithm: 'HS256', deprecated: true },
+          {
+            key: 'new-key-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+          {
+            key: 'old-key-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            deprecated: true,
+          },
         ],
       }
 
@@ -90,15 +100,29 @@ describe('createJWTKeyRotationMiddleware', () => {
     test('should verify token with deprecated key', async () => {
       const config: JWTKeyConfig = {
         secrets: [
-          { key: 'new-key', algorithm: 'HS256', primary: true },
-          { key: 'old-key', algorithm: 'HS256', deprecated: true },
+          {
+            key: 'new-key-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+          {
+            key: 'old-key-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            deprecated: true,
+          },
         ],
       }
 
       // Create token with old key
       const oldSigner = createTokenSigner({
         config: {
-          secrets: [{ key: 'old-key', algorithm: 'HS256', primary: true }],
+          secrets: [
+            {
+              key: 'old-key-at-least-32-bytes-long-secret-key!',
+              algorithm: 'HS256',
+              primary: true,
+            },
+          ],
         },
       })
       const token = await oldSigner({ userId: '456' })
@@ -126,9 +150,13 @@ describe('createJWTKeyRotationMiddleware', () => {
 
       const config: JWTKeyConfig = {
         secrets: [
-          { key: 'new-key', algorithm: 'HS256', primary: true },
           {
-            key: 'old-key',
+            key: 'new-key-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+          {
+            key: 'old-key-at-least-32-bytes-long-secret-key!',
             algorithm: 'HS256',
             deprecated: true,
             kid: 'old-key-id',
@@ -139,7 +167,13 @@ describe('createJWTKeyRotationMiddleware', () => {
       // Create token with old key
       const oldSigner = createTokenSigner({
         config: {
-          secrets: [{ key: 'old-key', algorithm: 'HS256', primary: true }],
+          secrets: [
+            {
+              key: 'old-key-at-least-32-bytes-long-secret-key!',
+              algorithm: 'HS256',
+              primary: true,
+            },
+          ],
         },
       })
       const token = await oldSigner({ userId: '789' })
@@ -164,11 +198,13 @@ describe('createJWTKeyRotationMiddleware', () => {
 
   describe('token extraction', () => {
     test('should extract token from Authorization header', async () => {
-      const signer = createTokenSigner({ config: 'test-secret' })
+      const signer = createTokenSigner({
+        config: 'test-secret-at-least-32-bytes-long-secret-key',
+      })
       const token = await signer({ userId: '123' })
 
       const middleware = createJWTKeyRotationMiddleware({
-        config: 'test-secret',
+        config: 'test-secret-at-least-32-bytes-long-secret-key',
       })
 
       const req = createMockRequest('http://localhost/api/test', {
@@ -185,7 +221,7 @@ describe('createJWTKeyRotationMiddleware', () => {
 
     test('should return 401 if no token provided', async () => {
       const middleware = createJWTKeyRotationMiddleware({
-        config: 'test-secret',
+        config: 'test-secret-at-least-32-bytes-long-secret-key',
       })
 
       const req = createMockRequest('http://localhost/api/test')
@@ -199,7 +235,7 @@ describe('createJWTKeyRotationMiddleware', () => {
 
     test('should return 401 if Authorization header is malformed', async () => {
       const middleware = createJWTKeyRotationMiddleware({
-        config: 'test-secret',
+        config: 'test-secret-at-least-32-bytes-long-secret-key',
       })
 
       const req = createMockRequest('http://localhost/api/test', {
@@ -214,11 +250,13 @@ describe('createJWTKeyRotationMiddleware', () => {
     })
 
     test('should support custom token extraction', async () => {
-      const signer = createTokenSigner({ config: 'test-secret' })
+      const signer = createTokenSigner({
+        config: 'test-secret-at-least-32-bytes-long-secret-key',
+      })
       const token = await signer({ userId: '123' })
 
       const middleware = createJWTKeyRotationMiddleware({
-        config: 'test-secret',
+        config: 'test-secret-at-least-32-bytes-long-secret-key',
         extractToken: (req) => {
           // Extract from custom header
           return req.headers.get('x-api-token')
@@ -242,7 +280,7 @@ describe('createJWTKeyRotationMiddleware', () => {
   describe('path exclusions', () => {
     test('should skip authentication for excluded paths', async () => {
       const middleware = createJWTKeyRotationMiddleware({
-        config: 'test-secret',
+        config: 'test-secret-at-least-32-bytes-long-secret-key',
         excludePaths: ['/public', '/health'],
       })
 
@@ -258,7 +296,7 @@ describe('createJWTKeyRotationMiddleware', () => {
 
     test('should require authentication for non-excluded paths', async () => {
       const middleware = createJWTKeyRotationMiddleware({
-        config: 'test-secret',
+        config: 'test-secret-at-least-32-bytes-long-secret-key',
         excludePaths: ['/public'],
       })
 
@@ -273,7 +311,7 @@ describe('createJWTKeyRotationMiddleware', () => {
 
     test('should match path prefixes', async () => {
       const middleware = createJWTKeyRotationMiddleware({
-        config: 'test-secret',
+        config: 'test-secret-at-least-32-bytes-long-secret-key',
         excludePaths: ['/api/public'],
       })
 
@@ -294,7 +332,7 @@ describe('createJWTKeyRotationMiddleware', () => {
   describe('error handling', () => {
     test('should return 401 for invalid token', async () => {
       const middleware = createJWTKeyRotationMiddleware({
-        config: 'test-secret',
+        config: 'test-secret-at-least-32-bytes-long-secret-key',
       })
 
       const req = createMockRequest('http://localhost/api/test', {
@@ -309,11 +347,13 @@ describe('createJWTKeyRotationMiddleware', () => {
     })
 
     test('should return 401 for expired token', async () => {
-      const signer = createTokenSigner({ config: 'test-secret' })
+      const signer = createTokenSigner({
+        config: 'test-secret-at-least-32-bytes-long-secret-key',
+      })
       const token = await signer({ userId: '123' }, { expiresIn: -1 }) // Already expired
 
       const middleware = createJWTKeyRotationMiddleware({
-        config: 'test-secret',
+        config: 'test-secret-at-least-32-bytes-long-secret-key',
       })
 
       const req = createMockRequest('http://localhost/api/test', {
@@ -329,7 +369,7 @@ describe('createJWTKeyRotationMiddleware', () => {
 
     test('should support custom error handler', async () => {
       const middleware = createJWTKeyRotationMiddleware({
-        config: 'test-secret',
+        config: 'test-secret-at-least-32-bytes-long-secret-key',
         onError: (error, req) => {
           return new Response(
             JSON.stringify({ custom: 'error', message: error.message }),
@@ -352,7 +392,9 @@ describe('createJWTKeyRotationMiddleware', () => {
 
   describe('JWT payload attachment', () => {
     test('should attach JWT payload to request', async () => {
-      const signer = createTokenSigner({ config: 'test-secret' })
+      const signer = createTokenSigner({
+        config: 'test-secret-at-least-32-bytes-long-secret-key',
+      })
       const token = await signer({
         userId: '123',
         role: 'admin',
@@ -360,7 +402,7 @@ describe('createJWTKeyRotationMiddleware', () => {
       })
 
       const middleware = createJWTKeyRotationMiddleware({
-        config: 'test-secret',
+        config: 'test-secret-at-least-32-bytes-long-secret-key',
       })
 
       const req = createMockRequest('http://localhost/api/test', {
@@ -380,7 +422,7 @@ describe('createJWTKeyRotationMiddleware', () => {
       const config: JWTKeyConfig = {
         secrets: [
           {
-            key: 'test-secret',
+            key: 'test-secret-at-least-32-bytes-long-secret-key',
             algorithm: 'HS256',
             primary: true,
             kid: 'key-2024-01',
@@ -409,13 +451,17 @@ describe('createJWTKeyRotationMiddleware', () => {
 
 describe('createTokenSigner', () => {
   test('should create token signer function', () => {
-    const signer = createTokenSigner({ config: 'test-secret' })
+    const signer = createTokenSigner({
+      config: 'test-secret-at-least-32-bytes-long-secret-key',
+    })
     expect(signer).toBeDefined()
     expect(typeof signer).toBe('function')
   })
 
   test('should sign tokens with payload', async () => {
-    const signer = createTokenSigner({ config: 'test-secret' })
+    const signer = createTokenSigner({
+      config: 'test-secret-at-least-32-bytes-long-secret-key',
+    })
     const token = await signer({ userId: '123', role: 'admin' })
 
     expect(token).toBeDefined()
@@ -424,10 +470,14 @@ describe('createTokenSigner', () => {
   })
 
   test('should sign tokens with expiration', async () => {
-    const signer = createTokenSigner({ config: 'test-secret' })
+    const signer = createTokenSigner({
+      config: 'test-secret-at-least-32-bytes-long-secret-key',
+    })
     const token = await signer({ userId: '123' }, { expiresIn: 3600 })
 
-    const verifier = createTokenVerifier({ config: 'test-secret' })
+    const verifier = createTokenVerifier({
+      config: 'test-secret-at-least-32-bytes-long-secret-key',
+    })
     const result = await verifier(token)
 
     expect(result.payload.exp).toBeDefined()
@@ -436,9 +486,13 @@ describe('createTokenSigner', () => {
   test('should use primary key for signing', async () => {
     const config: JWTKeyConfig = {
       secrets: [
-        { key: 'old-key', algorithm: 'HS256', deprecated: true },
         {
-          key: 'new-key',
+          key: 'old-key-at-least-32-bytes-long-secret-key!',
+          algorithm: 'HS256',
+          deprecated: true,
+        },
+        {
+          key: 'new-key-at-least-32-bytes-long-secret-key!',
           algorithm: 'HS256',
           primary: true,
           kid: 'new-key-id',
@@ -456,10 +510,14 @@ describe('createTokenSigner', () => {
   })
 
   test('should work with single secret string', async () => {
-    const signer = createTokenSigner({ config: 'simple-secret' })
+    const signer = createTokenSigner({
+      config: 'simple-secret-at-least-32-bytes-long!',
+    })
     const token = await signer({ userId: '123' })
 
-    const verifier = createTokenVerifier({ config: 'simple-secret' })
+    const verifier = createTokenVerifier({
+      config: 'simple-secret-at-least-32-bytes-long!',
+    })
     const result = await verifier(token)
 
     expect(result.payload.userId).toBe('123')
@@ -468,16 +526,22 @@ describe('createTokenSigner', () => {
 
 describe('createTokenVerifier', () => {
   test('should create token verifier function', () => {
-    const verifier = createTokenVerifier({ config: 'test-secret' })
+    const verifier = createTokenVerifier({
+      config: 'test-secret-at-least-32-bytes-long-secret-key',
+    })
     expect(verifier).toBeDefined()
     expect(typeof verifier).toBe('function')
   })
 
   test('should verify valid tokens', async () => {
-    const signer = createTokenSigner({ config: 'test-secret' })
+    const signer = createTokenSigner({
+      config: 'test-secret-at-least-32-bytes-long-secret-key',
+    })
     const token = await signer({ userId: '123', role: 'admin' })
 
-    const verifier = createTokenVerifier({ config: 'test-secret' })
+    const verifier = createTokenVerifier({
+      config: 'test-secret-at-least-32-bytes-long-secret-key',
+    })
     const result = await verifier(token)
 
     expect(result.payload.userId).toBe('123')
@@ -485,7 +549,9 @@ describe('createTokenVerifier', () => {
   })
 
   test('should reject invalid tokens', async () => {
-    const verifier = createTokenVerifier({ config: 'test-secret' })
+    const verifier = createTokenVerifier({
+      config: 'test-secret-at-least-32-bytes-long-secret-key',
+    })
 
     await expect(verifier('invalid.token.here')).rejects.toThrow()
   })
@@ -493,15 +559,29 @@ describe('createTokenVerifier', () => {
   test('should verify with any configured secret', async () => {
     const config: JWTKeyConfig = {
       secrets: [
-        { key: 'new-key', algorithm: 'HS256', primary: true },
-        { key: 'old-key', algorithm: 'HS256', deprecated: true },
+        {
+          key: 'new-key-at-least-32-bytes-long-secret-key!',
+          algorithm: 'HS256',
+          primary: true,
+        },
+        {
+          key: 'old-key-at-least-32-bytes-long-secret-key!',
+          algorithm: 'HS256',
+          deprecated: true,
+        },
       ],
     }
 
     // Create token with old key
     const oldSigner = createTokenSigner({
       config: {
-        secrets: [{ key: 'old-key', algorithm: 'HS256', primary: true }],
+        secrets: [
+          {
+            key: 'old-key-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+        ],
       },
     })
     const token = await oldSigner({ userId: '123' })
@@ -515,10 +595,14 @@ describe('createTokenVerifier', () => {
   })
 
   test('should work with single secret string', async () => {
-    const signer = createTokenSigner({ config: 'simple-secret' })
+    const signer = createTokenSigner({
+      config: 'simple-secret-at-least-32-bytes-long!',
+    })
     const token = await signer({ userId: '123' })
 
-    const verifier = createTokenVerifier({ config: 'simple-secret' })
+    const verifier = createTokenVerifier({
+      config: 'simple-secret-at-least-32-bytes-long!',
+    })
     const result = await verifier(token)
 
     expect(result.payload.userId).toBe('123')
@@ -529,7 +613,13 @@ describe('key rotation without downtime', () => {
   test('should support seamless key rotation in middleware', async () => {
     // Start with old key
     const oldConfig: JWTKeyConfig = {
-      secrets: [{ key: 'old-key', algorithm: 'HS256', primary: true }],
+      secrets: [
+        {
+          key: 'old-key-at-least-32-bytes-long-secret-key!',
+          algorithm: 'HS256',
+          primary: true,
+        },
+      ],
     }
 
     const oldSigner = createTokenSigner({ config: oldConfig })
@@ -538,8 +628,16 @@ describe('key rotation without downtime', () => {
     // Rotate to new key while keeping old key
     const newConfig: JWTKeyConfig = {
       secrets: [
-        { key: 'new-key', algorithm: 'HS256', primary: true },
-        { key: 'old-key', algorithm: 'HS256', deprecated: true },
+        {
+          key: 'new-key-at-least-32-bytes-long-secret-key!',
+          algorithm: 'HS256',
+          primary: true,
+        },
+        {
+          key: 'old-key-at-least-32-bytes-long-secret-key!',
+          algorithm: 'HS256',
+          deprecated: true,
+        },
       ],
     }
 
@@ -575,7 +673,13 @@ describe('key rotation without downtime', () => {
     // Version 1
     const v1Signer = createTokenSigner({
       config: {
-        secrets: [{ key: 'key-v1', algorithm: 'HS256', primary: true }],
+        secrets: [
+          {
+            key: 'key-v1-at-least-32-bytes-long-secret-key!!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+        ],
       },
     })
     const token1 = await v1Signer({ version: 1 })
@@ -583,7 +687,13 @@ describe('key rotation without downtime', () => {
     // Version 2
     const v2Signer = createTokenSigner({
       config: {
-        secrets: [{ key: 'key-v2', algorithm: 'HS256', primary: true }],
+        secrets: [
+          {
+            key: 'key-v2-at-least-32-bytes-long-secret-key!!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+        ],
       },
     })
     const token2 = await v2Signer({ version: 2 })
@@ -591,7 +701,13 @@ describe('key rotation without downtime', () => {
     // Version 3
     const v3Signer = createTokenSigner({
       config: {
-        secrets: [{ key: 'key-v3', algorithm: 'HS256', primary: true }],
+        secrets: [
+          {
+            key: 'key-v3-at-least-32-bytes-long-secret-key!!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+        ],
       },
     })
     const token3 = await v3Signer({ version: 3 })
@@ -599,9 +715,21 @@ describe('key rotation without downtime', () => {
     // Middleware with all keys
     const config: JWTKeyConfig = {
       secrets: [
-        { key: 'key-v3', algorithm: 'HS256', primary: true },
-        { key: 'key-v2', algorithm: 'HS256', deprecated: true },
-        { key: 'key-v1', algorithm: 'HS256', deprecated: true },
+        {
+          key: 'key-v3-at-least-32-bytes-long-secret-key!!',
+          algorithm: 'HS256',
+          primary: true,
+        },
+        {
+          key: 'key-v2-at-least-32-bytes-long-secret-key!!',
+          algorithm: 'HS256',
+          deprecated: true,
+        },
+        {
+          key: 'key-v1-at-least-32-bytes-long-secret-key!!',
+          algorithm: 'HS256',
+          deprecated: true,
+        },
       ],
     }
 

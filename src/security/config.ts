@@ -3,6 +3,7 @@
  */
 
 import type { ValidationResult, ValidationRules } from './types'
+import { safeDeepMerge } from './utils'
 
 /**
  * TLS/HTTPS configuration
@@ -215,7 +216,7 @@ export const DEFAULT_SECURITY_CONFIG: Partial<SecurityConfig> = {
       /%5c/i,
       /%00/,
       /\0/,
-      /%25%32%[fF]/i,
+      /%252[fF]/i, // raw double-encoded slash before decoding
     ],
     sanitizeHeaders: true,
   },
@@ -291,21 +292,27 @@ export function validateSecurityConfig(
 
   // Validate session config
   if (config.sessions) {
-    if (config.sessions.entropyBits && config.sessions.entropyBits < 128) {
+    if (
+      config.sessions.entropyBits != null &&
+      config.sessions.entropyBits < 128
+    ) {
       errors.push('Session entropy must be at least 128 bits')
     }
-    if (config.sessions.ttl && config.sessions.ttl <= 0) {
+    if (config.sessions.ttl != null && config.sessions.ttl <= 0) {
       errors.push('Session TTL must be positive')
     }
   }
 
   // Validate size limits
   if (config.sizeLimits) {
-    if (config.sizeLimits.maxBodySize && config.sizeLimits.maxBodySize <= 0) {
+    if (
+      config.sizeLimits.maxBodySize != null &&
+      config.sizeLimits.maxBodySize <= 0
+    ) {
       errors.push('maxBodySize must be positive')
     }
     if (
-      config.sizeLimits.maxHeaderSize &&
+      config.sizeLimits.maxHeaderSize != null &&
       config.sizeLimits.maxHeaderSize <= 0
     ) {
       errors.push('maxHeaderSize must be positive')
@@ -334,49 +341,13 @@ export function validateSecurityConfig(
 }
 
 /**
- * Merges user config with defaults
+ * Merges user config with defaults.
+ *
+ * Uses safeDeepMerge to prevent prototype pollution via __proto__,
+ * constructor, or prototype keys.
  */
 export function mergeSecurityConfig(
   userConfig: Partial<SecurityConfig>,
 ): SecurityConfig {
-  return {
-    ...DEFAULT_SECURITY_CONFIG,
-    ...userConfig,
-    inputValidation: {
-      ...DEFAULT_SECURITY_CONFIG.inputValidation,
-      ...userConfig.inputValidation,
-    },
-    errorHandling: {
-      ...DEFAULT_SECURITY_CONFIG.errorHandling,
-      ...userConfig.errorHandling,
-    },
-    sessions: {
-      ...DEFAULT_SECURITY_CONFIG.sessions,
-      ...userConfig.sessions,
-      cookieOptions: {
-        ...DEFAULT_SECURITY_CONFIG.sessions?.cookieOptions,
-        ...userConfig.sessions?.cookieOptions,
-      },
-    },
-    sizeLimits: {
-      ...DEFAULT_SECURITY_CONFIG.sizeLimits,
-      ...userConfig.sizeLimits,
-    },
-    securityHeaders: {
-      ...DEFAULT_SECURITY_CONFIG.securityHeaders,
-      ...userConfig.securityHeaders,
-      hsts: {
-        ...DEFAULT_SECURITY_CONFIG.securityHeaders?.hsts,
-        ...userConfig.securityHeaders?.hsts,
-      },
-    },
-    csrf: {
-      ...DEFAULT_SECURITY_CONFIG.csrf,
-      ...userConfig.csrf,
-    },
-    payloadMonitor: {
-      ...DEFAULT_SECURITY_CONFIG.payloadMonitor,
-      ...userConfig.payloadMonitor,
-    },
-  }
+  return safeDeepMerge(DEFAULT_SECURITY_CONFIG as SecurityConfig, userConfig)
 }

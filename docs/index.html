@@ -17,13 +17,22 @@
     <title>Bungate — Lightning-Fast HTTP Gateway & Load Balancer</title>
 
     <!-- Content Security Policy -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://assets.21no.de; font-src 'self' https://assets.21no.de; img-src 'self' data:; connect-src 'self'; base-uri 'self'; form-action 'self'" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'sha256-zsFOsYscpAp/7PRRpd0FdazNzo4Y3yzezTRK1VOSVlU='; style-src 'self' 'unsafe-inline' https://assets.21no.de; font-src 'self' https://assets.21no.de; img-src 'self' data:; connect-src 'self'; base-uri 'self'; form-action 'self'"
+    />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://bungate.21no.de/" />
-    <meta property="og:title" content="Bungate — Lightning-Fast HTTP Gateway & Load Balancer" />
-    <meta property="og:description" content="Enterprise-grade HTTP gateway built on Bun. TLS 1.3, JWT, 8+ load balancing strategies, circuit breakers, and zero-config simplicity." />
+    <meta
+      property="og:title"
+      content="Bungate — Lightning-Fast HTTP Gateway & Load Balancer"
+    />
+    <meta
+      property="og:description"
+      content="Enterprise-grade HTTP gateway built on Bun. TLS 1.3, JWT, 8+ load balancing strategies, circuit breakers, and zero-config simplicity."
+    />
     <meta property="og:image" content="https://21no.de/logo-v2.png" />
     <meta property="og:image:width" content="512" />
     <meta property="og:image:height" content="512" />
@@ -33,374 +42,1100 @@
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Bungate — Lightning-Fast HTTP Gateway & Load Balancer" />
-    <meta name="twitter:description" content="Enterprise-grade HTTP gateway built on Bun. TLS 1.3, JWT, 8+ load balancing strategies, circuit breakers, and zero-config simplicity." />
+    <meta
+      name="twitter:title"
+      content="Bungate — Lightning-Fast HTTP Gateway & Load Balancer"
+    />
+    <meta
+      name="twitter:description"
+      content="Enterprise-grade HTTP gateway built on Bun. TLS 1.3, JWT, 8+ load balancing strategies, circuit breakers, and zero-config simplicity."
+    />
     <meta name="twitter:image" content="https://21no.de/logo-v2.png" />
 
     <link rel="canonical" href="https://bungate.21no.de/" />
     <link rel="icon" type="image/png" href="bungate-logo.png" />
 
     <!-- Shared Assets (self-hosted via assets.21no.de) -->
-    <link rel="stylesheet" href="https://assets.21no.de/fonts/fonts.css" />
-    <link rel="stylesheet" href="https://assets.21no.de/css/tokens.css" />
-    <link rel="stylesheet" href="https://assets.21no.de/css/base.css" />
-    <link rel="stylesheet" href="https://assets.21no.de/css/nav.css" />
-    <link rel="stylesheet" href="https://assets.21no.de/css/hero.css" />
-    <link rel="stylesheet" href="https://assets.21no.de/css/buttons.css" />
-    <link rel="stylesheet" href="https://assets.21no.de/css/cards.css" />
-    <link rel="stylesheet" href="https://assets.21no.de/css/footer.css" />
+    <link
+      rel="stylesheet"
+      href="https://assets.21no.de/fonts/fonts.css"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      href="https://assets.21no.de/css/tokens.css"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      href="https://assets.21no.de/css/base.css"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      href="https://assets.21no.de/css/nav.css"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      href="https://assets.21no.de/css/hero.css"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      href="https://assets.21no.de/css/buttons.css"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      href="https://assets.21no.de/css/cards.css"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      href="https://assets.21no.de/css/footer.css"
+      crossorigin="anonymous"
+    />
 
     <style>
       :root {
         --bg-primary: #0a0a0b;
         --bg-card: #16161a;
-        --border-subtle: rgba(255,255,255,0.06);
-        --border-card: rgba(255,255,255,0.08);
+        --border-subtle: rgba(255, 255, 255, 0.06);
+        --border-card: rgba(255, 255, 255, 0.08);
         --text-primary: #ededef;
         --text-secondary: #9b9ba3;
         --text-tertiary: #6b6b75;
         --accent: #38bdf8;
-        --accent-subtle: rgba(56,189,248,0.08);
+        --accent-subtle: rgba(56, 189, 248, 0.08);
         --red: #f87171;
         --green: #3dd68c;
         --radius-sm: 6px;
         --radius-md: 8px;
         --radius-lg: 12px;
         --font-sans: 'Outfit', system-ui, -apple-system, sans-serif;
-        --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+        --font-mono:
+          'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco,
+          monospace;
         --max-width: 1100px;
       }
 
       /* === Stats === */
-      .stats { display: flex; gap: 32px; justify-content: center; margin-top: 40px; flex-wrap: wrap; }
-      .stat { text-align: center; }
-      .stat .num { font-family: var(--font-mono); font-size: 28px; font-weight: 700; color: var(--text-primary); }
-      .stat .label { font-size: 13px; color: var(--text-tertiary); margin-top: 4px; }
+      .stats {
+        display: flex;
+        gap: 32px;
+        justify-content: center;
+        margin-top: 40px;
+        flex-wrap: wrap;
+      }
+      .stat {
+        text-align: center;
+      }
+      .stat .num {
+        font-family: var(--font-mono);
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--text-primary);
+      }
+      .stat .label {
+        font-size: 13px;
+        color: var(--text-tertiary);
+        margin-top: 4px;
+      }
 
       /* === Grid === */
-      .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-      @media (max-width: 900px) { .grid-3 { grid-template-columns: 1fr; } }
+      .grid-3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+      }
+      @media (max-width: 900px) {
+        .grid-3 {
+          grid-template-columns: 1fr;
+        }
+      }
 
       /* === Card icon === */
-      .card-icon.blue { background: var(--accent-subtle); color: var(--accent); }
+      .card-icon.blue {
+        background: var(--accent-subtle);
+        color: var(--accent);
+      }
 
       /* === Section === */
-      .section-inner { max-width: var(--max-width); margin: 0 auto; padding: 80px 24px; }
-      .section-label { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--accent); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; }
-      .section-title { font-size: clamp(28px, 3.5vw, 40px); font-weight: 700; color: #fff; letter-spacing: -1px; line-height: 1.15; margin-bottom: 16px; }
-      .section-desc { font-size: 16px; color: var(--text-secondary); max-width: 640px; line-height: 1.6; margin-bottom: 48px; }
+      .section-inner {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: 80px 24px;
+      }
+      .section-label {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        margin-bottom: 12px;
+      }
+      .section-title {
+        font-size: clamp(28px, 3.5vw, 40px);
+        font-weight: 700;
+        color: #fff;
+        letter-spacing: -1px;
+        line-height: 1.15;
+        margin-bottom: 16px;
+      }
+      .section-desc {
+        font-size: 16px;
+        color: var(--text-secondary);
+        max-width: 640px;
+        line-height: 1.6;
+        margin-bottom: 48px;
+      }
 
       /* === Install box === */
-      .install-box { display: flex; flex-direction: column; gap: 12px; margin: 0 auto; max-width: 720px; }
-      .install-box .prompt { display: flex; align-items: center; gap: 10px; background: #111113; border: 1px solid var(--border-card); border-radius: var(--radius-md); padding: 14px 18px; font-family: var(--font-mono); font-size: 14px; color: var(--text-primary); }
-      .install-box .prompt .sigil { color: var(--accent); font-weight: 600; }
-      .install-box .prompt .command { color: var(--text-secondary); }
+      .install-box {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin: 0 auto;
+        max-width: 720px;
+      }
+      .install-box .prompt {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: #111113;
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-md);
+        padding: 14px 18px;
+        font-family: var(--font-mono);
+        font-size: 14px;
+        color: var(--text-primary);
+      }
+      .install-box .prompt .sigil {
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .install-box .prompt .command {
+        color: var(--text-secondary);
+      }
 
       /* === Syntax highlighting === */
-      .kw { color: #c792ea; }
-      .fn { color: #82aaff; }
-      .str { color: #c3e88d; }
-      .cmt { color: #546e7a; font-style: italic; }
-      .num { color: #f78c6c; }
+      .kw {
+        color: #c792ea;
+      }
+      .fn {
+        color: #82aaff;
+      }
+      .str {
+        color: #c3e88d;
+      }
+      .cmt {
+        color: #546e7a;
+        font-style: italic;
+      }
+      .num {
+        color: #f78c6c;
+      }
 
       /* === Use Case Carousel === */
-      .use-carousel { max-width: 880px; margin: 40px auto 0; position: relative; }
-      .use-slides { overflow: hidden; border-radius: var(--radius-lg); }
+      .use-carousel {
+        max-width: 880px;
+        margin: 40px auto 0;
+        position: relative;
+      }
+      .use-slides {
+        overflow: hidden;
+        border-radius: var(--radius-lg);
+      }
       .use-slide {
-        display: none; grid-template-columns: auto 1fr;
-        gap: 28px; align-items: start;
-        background: var(--bg-card); border: 1px solid var(--border-card);
-        border-radius: var(--radius-lg); padding: 28px 32px;
+        display: none;
+        grid-template-columns: auto 1fr;
+        gap: 28px;
+        align-items: start;
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-lg);
+        padding: 28px 32px;
         animation: useFadeIn 0.4s ease;
       }
-      .use-slide.active { display: grid; }
-      @keyframes useFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+      .use-slide.active {
+        display: grid;
+      }
+      @keyframes useFadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
       .use-icon {
-        display: flex; flex-direction: column; align-items: center; gap: 8px;
-        padding: 16px 20px; border-radius: var(--radius-md);
-        font-family: var(--font-mono); font-size: 12px; text-align: center;
-        min-width: 110px; background: var(--accent-subtle); border: 1px solid rgba(56,189,248,0.2);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        padding: 16px 20px;
+        border-radius: var(--radius-md);
+        font-family: var(--font-mono);
+        font-size: 12px;
+        text-align: center;
+        min-width: 110px;
+        background: var(--accent-subtle);
+        border: 1px solid rgba(56, 189, 248, 0.2);
       }
-      .use-icon .u-emoji { font-size: 28px; }
-      .use-icon .u-label { font-size: 10px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 600; }
-      .use-body { min-width: 0; text-align: left; }
-      .use-body h4 { font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 6px; }
-      .use-body p { font-size: 13px; color: var(--text-secondary); line-height: 1.55; margin-bottom: 12px; }
+      .use-icon .u-emoji {
+        font-size: 28px;
+      }
+      .use-icon .u-label {
+        font-size: 10px;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        font-weight: 600;
+      }
+      .use-body {
+        min-width: 0;
+        text-align: left;
+      }
+      .use-body h4 {
+        font-size: 16px;
+        font-weight: 600;
+        color: #fff;
+        margin-bottom: 6px;
+      }
+      .use-body p {
+        font-size: 13px;
+        color: var(--text-secondary);
+        line-height: 1.55;
+        margin-bottom: 12px;
+      }
       .use-body .use-code {
-        font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary);
-        background: #111113; border: 1px solid var(--border-subtle);
-        border-radius: var(--radius-sm); padding: 10px 14px;
-        white-space: pre; overflow-x: auto; text-align: left;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--text-secondary);
+        background: #111113;
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-sm);
+        padding: 10px 14px;
+        white-space: pre;
+        overflow-x: auto;
+        text-align: left;
       }
-      .use-body .use-code .kw { color: #c792ea; }
-      .use-body .use-code .fn { color: #82aaff; }
-      .use-body .use-code .str { color: #c3e88d; }
-      .use-body .use-code .cmt { color: #546e7a; font-style: italic; }
-      .use-body .use-code .num { color: #f78c6c; }
-      .use-controls { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 14px; }
-      .use-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-card); border: none; cursor: pointer; transition: all 0.2s; padding: 0; }
-      .use-dot.active { background: var(--accent); box-shadow: 0 0 8px rgba(56,189,248,0.3); }
-      .use-dot:hover { background: var(--text-tertiary); }
-      .use-label { font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); margin-left: 8px; letter-spacing: 0.5px; }
+      .use-body .use-code .kw {
+        color: #c792ea;
+      }
+      .use-body .use-code .fn {
+        color: #82aaff;
+      }
+      .use-body .use-code .str {
+        color: #c3e88d;
+      }
+      .use-body .use-code .cmt {
+        color: #546e7a;
+        font-style: italic;
+      }
+      .use-body .use-code .num {
+        color: #f78c6c;
+      }
+      .use-controls {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 14px;
+      }
+      .use-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--border-card);
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+        padding: 0;
+      }
+      .use-dot.active {
+        background: var(--accent);
+        box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+      }
+      .use-dot:hover {
+        background: var(--text-tertiary);
+      }
+      .use-label {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--text-tertiary);
+        margin-left: 8px;
+        letter-spacing: 0.5px;
+      }
 
       /* === Security rows === */
-      .security-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
-      .badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 500; }
-      .badge.g { background: rgba(61,214,140,0.1); color: var(--green); border: 1px solid rgba(61,214,140,0.15); }
-      .badge.b { background: var(--accent-subtle); color: var(--accent); border: 1px solid rgba(56,189,248,0.15); }
+      .security-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .badge.g {
+        background: rgba(61, 214, 140, 0.1);
+        color: var(--green);
+        border: 1px solid rgba(61, 214, 140, 0.15);
+      }
+      .badge.b {
+        background: var(--accent-subtle);
+        color: var(--accent);
+        border: 1px solid rgba(56, 189, 248, 0.15);
+      }
 
       /* === Responsive === */
       @media (max-width: 640px) {
-        .stats { gap: 20px; }
-        .stat .num { font-size: 24px; }
-        .section-inner { padding: 48px 16px; }
-        .use-slide { grid-template-columns: 1fr; gap: 16px; padding: 20px; }
-        .use-icon { flex-direction: row; min-width: auto; justify-content: center; gap: 12px; }
+        .stats {
+          gap: 20px;
+        }
+        .stat .num {
+          font-size: 24px;
+        }
+        .section-inner {
+          padding: 48px 16px;
+        }
+        .use-slide {
+          grid-template-columns: 1fr;
+          gap: 16px;
+          padding: 20px;
+        }
+        .use-icon {
+          flex-direction: row;
+          min-width: auto;
+          justify-content: center;
+          gap: 12px;
+        }
       }
     </style>
 
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@graph": [
-        {
-          "@type": "Organization",
-          "@id": "https://21no.de/#org",
-          "name": "21no.de",
-          "alternateName": "BackendStack21",
-          "url": "https://21no.de",
-          "logo": "https://21no.de/logo-v2.png",
-          "foundingDate": "2025",
-          "sameAs": ["https://github.com/BackendStack21"]
-        },
-        {
-          "@type": ["WebSite", "SoftwareApplication"],
-          "@id": "https://bungate.21no.de/#website",
-          "url": "https://bungate.21no.de",
-          "name": "Bungate — Lightning-Fast HTTP Gateway & Load Balancer",
-          "description": "Enterprise-grade HTTP gateway built on Bun. TLS 1.3, JWT, 8+ load balancing strategies, circuit breakers, and zero-config simplicity.",
-          "applicationCategory": "DeveloperApplication",
-          "operatingSystem": "Linux, macOS, Windows",
-          "publisher": { "@id": "https://21no.de/#org" }
-        }
-      ]
-    }
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://21no.de/#org",
+            "name": "21no.de",
+            "alternateName": "BackendStack21",
+            "url": "https://21no.de",
+            "logo": "https://21no.de/logo-v2.png",
+            "foundingDate": "2025",
+            "sameAs": ["https://github.com/BackendStack21"]
+          },
+          {
+            "@type": ["WebSite", "SoftwareApplication"],
+            "@id": "https://bungate.21no.de/#website",
+            "url": "https://bungate.21no.de",
+            "name": "Bungate — Lightning-Fast HTTP Gateway & Load Balancer",
+            "description": "Enterprise-grade HTTP gateway built on Bun. TLS 1.3, JWT, 8+ load balancing strategies, circuit breakers, and zero-config simplicity.",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "Linux, macOS, Windows",
+            "publisher": { "@id": "https://21no.de/#org" }
+          }
+        ]
+      }
     </script>
   </head>
   <body>
-
     <nav class="nav">
       <div class="nav-inner">
         <a href="https://21no.de" class="nav-logo">
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-            <rect width="28" height="28" rx="6" fill="#38bdf8"/>
-            <text x="14" y="20" text-anchor="middle" fill="#0a0a0b" font-family="system-ui" font-weight="700" font-size="16">21</text>
+            <rect width="28" height="28" rx="6" fill="#38bdf8" />
+            <text
+              x="14"
+              y="20"
+              text-anchor="middle"
+              fill="#0a0a0b"
+              font-family="system-ui"
+              font-weight="700"
+              font-size="16"
+            >
+              21
+            </text>
           </svg>
           21no.de
         </a>
         <div class="nav-links">
           <a href="https://21no.de">Home</a>
-          <a href="https://github.com/BackendStack21/bungate" target="_blank" rel="noopener">GitHub</a>
+          <a
+            href="https://github.com/BackendStack21/bungate"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+          >
         </div>
       </div>
     </nav>
 
     <!-- Hero -->
-    <section class="hero" style="padding:120px 24px 100px;text-align:center;">
-      <div style="display:inline-flex;align-items:center;gap:8px;background:var(--accent-subtle);border:1px solid rgba(56,189,248,0.2);color:var(--accent);padding:6px 16px;border-radius:999px;font-size:13px;font-weight:500;margin-bottom:28px;">
-        <span style="width:6px;height:6px;background:var(--accent);border-radius:50%;animation:pulse 2s infinite;"></span>
+    <section class="hero" style="padding: 120px 24px 100px; text-align: center">
+      <div
+        style="
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          background: var(--accent-subtle);
+          border: 1px solid rgba(56, 189, 248, 0.2);
+          color: var(--accent);
+          padding: 6px 16px;
+          border-radius: 999px;
+          font-size: 13px;
+          font-weight: 500;
+          margin-bottom: 28px;
+        "
+      >
+        <span
+          style="
+            width: 6px;
+            height: 6px;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+          "
+        ></span>
         Open Source
       </div>
-      <style>.hero-badge-dot { animation: pulse 2s infinite; } @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }</style>
-      <h1 style="font-size:clamp(40px,6vw,64px);font-weight:700;color:#fff;letter-spacing:-2px;line-height:1.05;margin-bottom:20px;">
-        Bungate — Lightning-Fast <span style="color:var(--accent);">HTTP Gateway</span>
+      <style>
+        .hero-badge-dot {
+          animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+          0%,
+          100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.4;
+          }
+        }
+      </style>
+      <h1
+        style="
+          font-size: clamp(40px, 6vw, 64px);
+          font-weight: 700;
+          color: #fff;
+          letter-spacing: -2px;
+          line-height: 1.05;
+          margin-bottom: 20px;
+        "
+      >
+        Bungate — Lightning-Fast
+        <span style="color: var(--accent)">HTTP Gateway</span>
       </h1>
-      <p style="font-size:clamp(16px,2vw,20px);font-weight:300;color:var(--text-secondary);max-width:640px;margin:0 auto 40px;line-height:1.5;">
-        Enterprise-grade HTTP gateway & load balancer built on Bun. TLS 1.3, JWT key rotation, 8+ load balancing strategies, and zero-config simplicity.
+      <p
+        style="
+          font-size: clamp(16px, 2vw, 20px);
+          font-weight: 300;
+          color: var(--text-secondary);
+          max-width: 640px;
+          margin: 0 auto 40px;
+          line-height: 1.5;
+        "
+      >
+        Enterprise-grade HTTP gateway & load balancer built on Bun. TLS 1.3, JWT
+        key rotation, 8+ load balancing strategies, and zero-config simplicity.
       </p>
 
-      <div class="hero-actions" style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">
-        <a href="#get-started" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:8px;padding:12px 28px;border-radius:var(--radius-md);font-size:15px;font-weight:500;text-decoration:none;background:var(--accent);color:#000;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      <div
+        class="hero-actions"
+        style="
+          display: flex;
+          gap: 14px;
+          justify-content: center;
+          flex-wrap: wrap;
+        "
+      >
+        <a
+          href="#get-started"
+          class="btn btn-primary"
+          style="
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 28px;
+            border-radius: var(--radius-md);
+            font-size: 15px;
+            font-weight: 500;
+            text-decoration: none;
+            background: var(--accent);
+            color: #000;
+          "
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <polyline points="4 17 10 11 4 5" />
+            <line x1="12" y1="19" x2="20" y2="19" />
+          </svg>
           Get Started
         </a>
-        <a href="https://github.com/BackendStack21/bungate" target="_blank" rel="noopener" class="btn btn-secondary" style="display:inline-flex;align-items:center;gap:8px;padding:12px 28px;border-radius:var(--radius-md);font-size:15px;font-weight:500;text-decoration:none;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-card);">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+        <a
+          href="https://github.com/BackendStack21/bungate"
+          target="_blank"
+          rel="noopener"
+          class="btn btn-secondary"
+          style="
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 28px;
+            border-radius: var(--radius-md);
+            font-size: 15px;
+            font-weight: 500;
+            text-decoration: none;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-card);
+          "
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"
+            />
+          </svg>
           GitHub
         </a>
       </div>
 
       <!-- Stats -->
       <div class="stats">
-        <div class="stat"><div class="num">18K+</div><div class="label">Requests / second</div></div>
-        <div class="stat"><div class="num">&lt;1ms</div><div class="label">Routing Overhead</div></div>
-        <div class="stat"><div class="num">8+</div><div class="label">LB Strategies</div></div>
-        <div class="stat"><div class="num">TLS 1.3</div><div class="label">Enterprise Security</div></div>
-        <div class="stat"><div class="num">98.9%</div><div class="label">Test Coverage</div></div>
+        <div class="stat">
+          <div class="num">18K+</div>
+          <div class="label">Requests / second</div>
+        </div>
+        <div class="stat">
+          <div class="num">&lt;1ms</div>
+          <div class="label">Routing Overhead</div>
+        </div>
+        <div class="stat">
+          <div class="num">8+</div>
+          <div class="label">LB Strategies</div>
+        </div>
+        <div class="stat">
+          <div class="num">TLS 1.3</div>
+          <div class="label">Enterprise Security</div>
+        </div>
+        <div class="stat">
+          <div class="num">98.9%</div>
+          <div class="label">Test Coverage</div>
+        </div>
       </div>
 
       <!-- Use Case Carousel -->
       <div class="use-carousel">
         <div class="use-slides">
           <div class="use-slide active">
-            <div class="use-icon"><div class="u-emoji">🚀</div><div class="u-label">Microservices</div></div>
+            <div class="use-icon">
+              <div class="u-emoji">🚀</div>
+              <div class="u-label">Microservices</div>
+            </div>
             <div class="use-body">
               <h4>API Gateway for Microservices</h4>
-              <p>Route traffic to dozens of backend services with intelligent load balancing, JWT auth, and per-route rate limiting — all from a single config file.</p>
-              <div class="use-code"><span class="kw">const</span> gateway = <span class="kw">new</span> <span class="fn">BunGateway</span>({
-  server: { port: <span class="num">8080</span> },
-  cluster: { enabled: <span class="kw">true</span>, workers: <span class="num">4</span> },
-  auth: { secret: process.env.<span class="fn">JWT_SECRET</span> },
-  cors: { origin: [<span class="str">'https://myapp.com'</span>] },
-})
-gateway.<span class="fn">addRoute</span>({
-  pattern: <span class="str">'/users/*'</span>,
-  target: <span class="str">'http://user-svc:3001'</span>,
-  rateLimit: { max: <span class="num">100</span>, windowMs: <span class="num">60000</span> },
-})
-gateway.<span class="fn">addRoute</span>({
-  pattern: <span class="str">'/payments/*'</span>,
-  target: <span class="str">'http://pay-svc:3002'</span>,
-  circuitBreaker: { enabled: <span class="kw">true</span>, failureThreshold: <span class="num">3</span> },
-})</div>
+              <p>
+                Route traffic to dozens of backend services with intelligent
+                load balancing, JWT auth, and per-route rate limiting — all from
+                a single config file.
+              </p>
+              <div class="use-code">
+                <span class="kw">const</span> gateway =
+                <span class="kw">new</span> <span class="fn">BunGateway</span>({
+                server: { port: <span class="num">8080</span> }, cluster: {
+                enabled: <span class="kw">true</span>, workers:
+                <span class="num">4</span> }, auth: { secret: process.env.<span
+                  class="fn"
+                  >JWT_SECRET</span
+                >
+                }, cors: { origin: [<span class="str">'https://myapp.com'</span
+                >] }, }) gateway.<span class="fn">addRoute</span>({ pattern:
+                <span class="str">'/users/*'</span>, target:
+                <span class="str">'http://user-svc:3001'</span>, rateLimit: {
+                max: <span class="num">100</span>, windowMs:
+                <span class="num">60000</span> }, }) gateway.<span class="fn"
+                  >addRoute</span
+                >({ pattern: <span class="str">'/payments/*'</span>, target:
+                <span class="str">'http://pay-svc:3002'</span>, circuitBreaker:
+                { enabled: <span class="kw">true</span>, failureThreshold:
+                <span class="num">3</span> }, })
+              </div>
             </div>
           </div>
           <div class="use-slide">
-            <div class="use-icon"><div class="u-emoji">🎯</div><div class="u-label">Load Balancer</div></div>
+            <div class="use-icon">
+              <div class="u-emoji">🎯</div>
+              <div class="u-label">Load Balancer</div>
+            </div>
             <div class="use-body">
               <h4>Intelligent Load Balancer with Health Checks</h4>
-              <p>Distribute traffic across backend pools with 8+ strategies. Automatic health checks detect unhealthy targets and reroute traffic without dropping requests.</p>
-              <div class="use-code">gateway.<span class="fn">addRoute</span>({
-  pattern: <span class="str">'/api/*'</span>,
-  loadBalancer: {
-    strategy: <span class="str">'least-connections'</span>,
-    targets: [
-      { url: <span class="str">'http://api1:3000'</span>, weight: <span class="num">3</span> },
-      { url: <span class="str">'http://api2:3000'</span>, weight: <span class="num">2</span> },
-      { url: <span class="str">'http://api3:3000'</span>, weight: <span class="num">1</span> },
-    ],
-    healthCheck: { enabled: <span class="kw">true</span>, interval: <span class="num">15000</span>, path: <span class="str">'/health'</span> },
-    stickySession: { enabled: <span class="kw">true</span> },
-  },
-})</div>
+              <p>
+                Distribute traffic across backend pools with 8+ strategies.
+                Automatic health checks detect unhealthy targets and reroute
+                traffic without dropping requests.
+              </p>
+              <div class="use-code">
+                gateway.<span class="fn">addRoute</span>({ pattern:
+                <span class="str">'/api/*'</span>, loadBalancer: { strategy:
+                <span class="str">'least-connections'</span>, targets: [ { url:
+                <span class="str">'http://api1:3000'</span>, weight:
+                <span class="num">3</span> }, { url:
+                <span class="str">'http://api2:3000'</span>, weight:
+                <span class="num">2</span> }, { url:
+                <span class="str">'http://api3:3000'</span>, weight:
+                <span class="num">1</span> }, ], healthCheck: { enabled:
+                <span class="kw">true</span>, interval:
+                <span class="num">15000</span>, path:
+                <span class="str">'/health'</span> }, stickySession: { enabled:
+                <span class="kw">true</span> }, }, })
+              </div>
             </div>
           </div>
           <div class="use-slide">
-            <div class="use-icon"><div class="u-emoji">🔒</div><div class="u-label">TLS Proxy</div></div>
+            <div class="use-icon">
+              <div class="u-emoji">🔒</div>
+              <div class="u-label">TLS Proxy</div>
+            </div>
             <div class="use-body">
               <h4>TLS Termination with Auto HTTP→HTTPS Redirect</h4>
-              <p>Terminate TLS 1.3 at the edge with automatic certificate loading, strong cipher suites, and seamless HTTP-to-HTTPS redirection. Zero config beyond pointing at your cert files.</p>
-              <div class="use-code"><span class="kw">const</span> gateway = <span class="kw">new</span> <span class="fn">BunGateway</span>({
-  server: { port: <span class="num">443</span> },
-  security: {
-    tls: {
-      enabled: <span class="kw">true</span>,
-      cert: <span class="str">'./cert.pem'</span>,
-      key: <span class="str">'./key.pem'</span>,
-      minVersion: <span class="str">'TLSv1.3'</span>,
-      redirectHTTP: <span class="kw">true</span>,
-      redirectPort: <span class="num">80</span>,
-    },
-  },
-})</div>
+              <p>
+                Terminate TLS 1.3 at the edge with automatic certificate
+                loading, strong cipher suites, and seamless HTTP-to-HTTPS
+                redirection. Zero config beyond pointing at your cert files.
+              </p>
+              <div class="use-code">
+                <span class="kw">const</span> gateway =
+                <span class="kw">new</span> <span class="fn">BunGateway</span>({
+                server: { port: <span class="num">443</span> }, security: { tls:
+                { enabled: <span class="kw">true</span>, cert:
+                <span class="str">'./cert.pem'</span>, key:
+                <span class="str">'./key.pem'</span>, minVersion:
+                <span class="str">'TLSv1.3'</span>, redirectHTTP:
+                <span class="kw">true</span>, redirectPort:
+                <span class="num">80</span>, }, }, })
+              </div>
             </div>
           </div>
           <div class="use-slide">
-            <div class="use-icon"><div class="u-emoji">⚡</div><div class="u-label">Cluster Mode</div></div>
+            <div class="use-icon">
+              <div class="u-emoji">⚡</div>
+              <div class="u-label">Cluster Mode</div>
+            </div>
             <div class="use-body">
               <h4>Multi-Process Cluster with Zero-Downtime Restarts</h4>
-              <p>Scale horizontally across all CPU cores. Rolling restarts spawn replacements before stopping old workers — zero dropped connections during deployments.</p>
-              <div class="use-code"><span class="kw">const</span> gateway = <span class="kw">new</span> <span class="fn">BunGateway</span>({
-  server: { port: <span class="num">3000</span> },
-  cluster: {
-    enabled: <span class="kw">true</span>,
-    workers: <span class="num">8</span>,
-    restartWorkers: <span class="kw">true</span>,
-    shutdownTimeout: <span class="num">30000</span>,
-    maxRestarts: <span class="num">10</span>,
-  },
-})
-<span class="cmt">// Scale at runtime: kill -s SIGUSR2 &lt;pid&gt; → rolling restart</span>
-<span class="cmt">// Increase workers: gateway.cluster.scaleTo(12)</span></div>
+              <p>
+                Scale horizontally across all CPU cores. Rolling restarts spawn
+                replacements before stopping old workers — zero dropped
+                connections during deployments.
+              </p>
+              <div class="use-code">
+                <span class="kw">const</span> gateway =
+                <span class="kw">new</span> <span class="fn">BunGateway</span>({
+                server: { port: <span class="num">3000</span> }, cluster: {
+                enabled: <span class="kw">true</span>, workers:
+                <span class="num">8</span>, restartWorkers:
+                <span class="kw">true</span>, shutdownTimeout:
+                <span class="num">30000</span>, maxRestarts:
+                <span class="num">10</span>, }, })
+                <span class="cmt"
+                  >// Scale at runtime: kill -s SIGUSR2 &lt;pid&gt; → rolling
+                  restart</span
+                >
+                <span class="cmt"
+                  >// Increase workers: gateway.cluster.scaleTo(12)</span
+                >
+              </div>
             </div>
           </div>
           <div class="use-slide">
-            <div class="use-icon"><div class="u-emoji">🛡️</div><div class="u-label">Edge Proxy</div></div>
+            <div class="use-icon">
+              <div class="u-emoji">🛡️</div>
+              <div class="u-label">Edge Proxy</div>
+            </div>
             <div class="use-body">
               <h4>Secure Edge Proxy with Defense-in-Depth</h4>
-              <p>Every request passes through TLS termination, input validation, JWT verification, and security headers — before reaching your backend. OWASP Top 10 covered by default.</p>
-              <div class="use-code"><span class="kw">const</span> gateway = <span class="kw">new</span> <span class="fn">BunGateway</span>({
-  security: {
-    tls: { enabled: <span class="kw">true</span>, cert: <span class="str">'./cert.pem'</span>, key: <span class="str">'./key.pem'</span> },
-    jwtKeyRotation: {
-      secrets: [{ key: process.env.<span class="fn">JWT_NEW</span>, kid: <span class="str">'2025-05'</span>, primary: <span class="kw">true</span> }],
-      jwksUri: <span class="str">'https://auth.example.com/.well-known/jwks.json'</span>,
-    },
-    inputValidation: {
-      blockedPatterns: [<span class="str">/\.\./</span>, <span class="str">/%00/</span>, <span class="str">/&lt;script&gt;/i</span>],
-    },
-    securityHeaders: { enabled: <span class="kw">true</span> },
-  },
-})</div>
+              <p>
+                Every request passes through TLS termination, input validation,
+                JWT verification, and security headers — before reaching your
+                backend. OWASP Top 10 covered by default.
+              </p>
+              <div class="use-code">
+                <span class="kw">const</span> gateway =
+                <span class="kw">new</span> <span class="fn">BunGateway</span>({
+                security: { tls: { enabled: <span class="kw">true</span>, cert:
+                <span class="str">'./cert.pem'</span>, key:
+                <span class="str">'./key.pem'</span> }, jwtKeyRotation: {
+                secrets: [{ key: process.env.<span class="fn">JWT_NEW</span>,
+                kid: <span class="str">'2025-05'</span>, primary:
+                <span class="kw">true</span> }], jwksUri:
+                <span class="str"
+                  >'https://auth.example.com/.well-known/jwks.json'</span
+                >, }, inputValidation: { blockedPatterns: [<span class="str"
+                  >/\.\./</span
+                >, <span class="str">/%00/</span>,
+                <span class="str">/&lt;script&gt;/i</span>], }, securityHeaders:
+                { enabled: <span class="kw">true</span> }, }, })
+              </div>
             </div>
           </div>
         </div>
         <div class="use-controls">
-          <button class="use-dot active" data-index="0" aria-label="Microservices Gateway"></button>
-          <button class="use-dot" data-index="1" aria-label="Load Balancer"></button>
-          <button class="use-dot" data-index="2" aria-label="TLS Proxy"></button>
-          <button class="use-dot" data-index="3" aria-label="Cluster Mode"></button>
-          <button class="use-dot" data-index="4" aria-label="Edge Proxy"></button>
+          <button
+            class="use-dot active"
+            data-index="0"
+            aria-label="Microservices Gateway"
+          ></button>
+          <button
+            class="use-dot"
+            data-index="1"
+            aria-label="Load Balancer"
+          ></button>
+          <button
+            class="use-dot"
+            data-index="2"
+            aria-label="TLS Proxy"
+          ></button>
+          <button
+            class="use-dot"
+            data-index="3"
+            aria-label="Cluster Mode"
+          ></button>
+          <button
+            class="use-dot"
+            data-index="4"
+            aria-label="Edge Proxy"
+          ></button>
           <span class="use-label">use cases</span>
         </div>
       </div>
     </section>
 
     <!-- Features -->
-    <section style="background:rgba(255,255,255,0.01);">
+    <section style="background: rgba(255, 255, 255, 0.01)">
       <div class="section-inner">
         <div class="section-label">Why Bungate</div>
-        <h2 class="section-title">Built for developers who demand performance</h2>
-        <p class="section-desc">A gateway that combines Bun's native speed with enterprise security — no compromises, no config overhead.</p>
+        <h2 class="section-title">
+          Built for developers who demand performance
+        </h2>
+        <p class="section-desc">
+          A gateway that combines Bun's native speed with enterprise security —
+          no compromises, no config overhead.
+        </p>
 
-        <div class="grid-3" style="margin-top:16px;">
-          <div class="card" style="background:var(--bg-card);border:1px solid var(--border-card);border-radius:var(--radius-md);padding:28px;">
-            <div class="card-icon blue" style="width:40px;height:40px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:16px;">&#9889;</div>
-            <h4 style="font-size:16px;font-weight:600;color:#fff;margin-bottom:8px;">Bun-Native Performance</h4>
-            <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;">Optimized for Bun's runtime. 18K+ req/s, single-digit ms latency, sub-30ms p99 response times in production benchmarks against nginx and envoy.</p>
+        <div class="grid-3" style="margin-top: 16px">
+          <div
+            class="card"
+            style="
+              background: var(--bg-card);
+              border: 1px solid var(--border-card);
+              border-radius: var(--radius-md);
+              padding: 28px;
+            "
+          >
+            <div
+              class="card-icon blue"
+              style="
+                width: 40px;
+                height: 40px;
+                border-radius: var(--radius-sm);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 20px;
+                margin-bottom: 16px;
+              "
+            >
+              &#9889;
+            </div>
+            <h4
+              style="
+                font-size: 16px;
+                font-weight: 600;
+                color: #fff;
+                margin-bottom: 8px;
+              "
+            >
+              Bun-Native Performance
+            </h4>
+            <p
+              style="
+                font-size: 14px;
+                color: var(--text-secondary);
+                line-height: 1.6;
+              "
+            >
+              Optimized for Bun's runtime. 18K+ req/s, single-digit ms latency,
+              sub-30ms p99 response times in production benchmarks against nginx
+              and envoy.
+            </p>
           </div>
 
-          <div class="card" style="background:var(--bg-card);border:1px solid var(--border-card);border-radius:var(--radius-md);padding:28px;">
-            <div class="card-icon blue" style="width:40px;height:40px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:16px;">&#129504;</div>
-            <h4 style="font-size:16px;font-weight:600;color:#fff;margin-bottom:8px;">Smart Load Balancing</h4>
-            <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;">Round-robin, least-connections, weighted, ip-hash, random, power-of-two-choices, latency, weighted-least-connections. Cookie-based sticky sessions.</p>
+          <div
+            class="card"
+            style="
+              background: var(--bg-card);
+              border: 1px solid var(--border-card);
+              border-radius: var(--radius-md);
+              padding: 28px;
+            "
+          >
+            <div
+              class="card-icon blue"
+              style="
+                width: 40px;
+                height: 40px;
+                border-radius: var(--radius-sm);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 20px;
+                margin-bottom: 16px;
+              "
+            >
+              &#129504;
+            </div>
+            <h4
+              style="
+                font-size: 16px;
+                font-weight: 600;
+                color: #fff;
+                margin-bottom: 8px;
+              "
+            >
+              Smart Load Balancing
+            </h4>
+            <p
+              style="
+                font-size: 14px;
+                color: var(--text-secondary);
+                line-height: 1.6;
+              "
+            >
+              Round-robin, least-connections, weighted, ip-hash, random,
+              power-of-two-choices, latency, weighted-least-connections.
+              Cookie-based sticky sessions.
+            </p>
           </div>
 
-          <div class="card" style="background:var(--bg-card);border:1px solid var(--border-card);border-radius:var(--radius-md);padding:28px;">
-            <div class="card-icon blue" style="width:40px;height:40px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:16px;">&#128274;</div>
-            <h4 style="font-size:16px;font-weight:600;color:#fff;margin-bottom:8px;">Enterprise Security</h4>
-            <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;">TLS 1.3 with auto HTTP redirect, JWT key rotation with JWKS, input validation, CSRF protection, security headers, trusted proxy validation, OWASP Top 10 coverage.</p>
+          <div
+            class="card"
+            style="
+              background: var(--bg-card);
+              border: 1px solid var(--border-card);
+              border-radius: var(--radius-md);
+              padding: 28px;
+            "
+          >
+            <div
+              class="card-icon blue"
+              style="
+                width: 40px;
+                height: 40px;
+                border-radius: var(--radius-sm);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 20px;
+                margin-bottom: 16px;
+              "
+            >
+              &#128274;
+            </div>
+            <h4
+              style="
+                font-size: 16px;
+                font-weight: 600;
+                color: #fff;
+                margin-bottom: 8px;
+              "
+            >
+              Enterprise Security
+            </h4>
+            <p
+              style="
+                font-size: 14px;
+                color: var(--text-secondary);
+                line-height: 1.6;
+              "
+            >
+              TLS 1.3 with auto HTTP redirect, JWT key rotation with JWKS, input
+              validation, CSRF protection, security headers, trusted proxy
+              validation, OWASP Top 10 coverage.
+            </p>
           </div>
         </div>
 
-        <div class="grid-3" style="margin-top:16px;">
-          <div class="card" style="background:var(--bg-card);border:1px solid var(--border-card);border-radius:var(--radius-md);padding:28px;">
-            <div class="card-icon blue" style="width:40px;height:40px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:16px;">&#9000;</div>
-            <h4 style="font-size:16px;font-weight:600;color:#fff;margin-bottom:8px;">TypeScript First</h4>
-            <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;">Complete type definitions for every API. IDE autocomplete, type safety, and inline documentation from <code style="font-family:var(--font-mono);font-size:13px;background:rgba(56,189,248,0.1);color:var(--accent);padding:2px 6px;border-radius:4px;">bun add bungate</code> to production.</p>
+        <div class="grid-3" style="margin-top: 16px">
+          <div
+            class="card"
+            style="
+              background: var(--bg-card);
+              border: 1px solid var(--border-card);
+              border-radius: var(--radius-md);
+              padding: 28px;
+            "
+          >
+            <div
+              class="card-icon blue"
+              style="
+                width: 40px;
+                height: 40px;
+                border-radius: var(--radius-sm);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 20px;
+                margin-bottom: 16px;
+              "
+            >
+              &#9000;
+            </div>
+            <h4
+              style="
+                font-size: 16px;
+                font-weight: 600;
+                color: #fff;
+                margin-bottom: 8px;
+              "
+            >
+              TypeScript First
+            </h4>
+            <p
+              style="
+                font-size: 14px;
+                color: var(--text-secondary);
+                line-height: 1.6;
+              "
+            >
+              Complete type definitions for every API. IDE autocomplete, type
+              safety, and inline documentation from
+              <code
+                style="
+                  font-family: var(--font-mono);
+                  font-size: 13px;
+                  background: rgba(56, 189, 248, 0.1);
+                  color: var(--accent);
+                  padding: 2px 6px;
+                  border-radius: 4px;
+                "
+                >bun add bungate</code
+              >
+              to production.
+            </p>
           </div>
 
-          <div class="card" style="background:var(--bg-card);border:1px solid var(--border-card);border-radius:var(--radius-md);padding:28px;">
-            <div class="card-icon blue" style="width:40px;height:40px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:16px;">&#128295;</div>
-            <h4 style="font-size:16px;font-weight:600;color:#fff;margin-bottom:8px;">Production Ready</h4>
-            <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;">Circuit breakers, health checks with configurable intervals, auto-failover, timeout management, cluster mode with zero-downtime rolling restarts. Built for reliability.</p>
+          <div
+            class="card"
+            style="
+              background: var(--bg-card);
+              border: 1px solid var(--border-card);
+              border-radius: var(--radius-md);
+              padding: 28px;
+            "
+          >
+            <div
+              class="card-icon blue"
+              style="
+                width: 40px;
+                height: 40px;
+                border-radius: var(--radius-sm);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 20px;
+                margin-bottom: 16px;
+              "
+            >
+              &#128295;
+            </div>
+            <h4
+              style="
+                font-size: 16px;
+                font-weight: 600;
+                color: #fff;
+                margin-bottom: 8px;
+              "
+            >
+              Production Ready
+            </h4>
+            <p
+              style="
+                font-size: 14px;
+                color: var(--text-secondary);
+                line-height: 1.6;
+              "
+            >
+              Circuit breakers, health checks with configurable intervals,
+              auto-failover, timeout management, cluster mode with zero-downtime
+              rolling restarts. Built for reliability.
+            </p>
           </div>
 
-          <div class="card" style="background:var(--bg-card);border:1px solid var(--border-card);border-radius:var(--radius-md);padding:28px;">
-            <div class="card-icon blue" style="width:40px;height:40px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:16px;">&#127919;</div>
-            <h4 style="font-size:16px;font-weight:600;color:#fff;margin-bottom:8px;">Zero Config</h4>
-            <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;">Works out of the box with sensible defaults. Get started in seconds — production-ready from day one with Prometheus metrics, structured logging, and health endpoints.</p>
+          <div
+            class="card"
+            style="
+              background: var(--bg-card);
+              border: 1px solid var(--border-card);
+              border-radius: var(--radius-md);
+              padding: 28px;
+            "
+          >
+            <div
+              class="card-icon blue"
+              style="
+                width: 40px;
+                height: 40px;
+                border-radius: var(--radius-sm);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 20px;
+                margin-bottom: 16px;
+              "
+            >
+              &#127919;
+            </div>
+            <h4
+              style="
+                font-size: 16px;
+                font-weight: 600;
+                color: #fff;
+                margin-bottom: 8px;
+              "
+            >
+              Zero Config
+            </h4>
+            <p
+              style="
+                font-size: 14px;
+                color: var(--text-secondary);
+                line-height: 1.6;
+              "
+            >
+              Works out of the box with sensible defaults. Get started in
+              seconds — production-ready from day one with Prometheus metrics,
+              structured logging, and health endpoints.
+            </p>
           </div>
         </div>
       </div>
@@ -411,7 +1146,10 @@ gateway.<span class="fn">addRoute</span>({
       <div class="section-inner">
         <div class="section-label">Get Started</div>
         <h2 class="section-title">Production-ready in seconds</h2>
-        <p class="section-desc">Install, configure, deploy. A complete API gateway with load balancing, auth, and security — from a single file.</p>
+        <p class="section-desc">
+          Install, configure, deploy. A complete API gateway with load
+          balancing, auth, and security — from a single file.
+        </p>
 
         <div class="install-box">
           <div class="prompt">
@@ -420,44 +1158,59 @@ gateway.<span class="fn">addRoute</span>({
           </div>
         </div>
 
-        <div class="install-box" style="margin-top:24px;">
-          <div class="prompt" style="display:block;padding:20px 24px;overflow-x:auto;white-space:pre;line-height:1.7;">
-<span class="cmt">// gateway.ts — production-ready in one file</span>
-<span class="kw">import</span> { BunGateway } <span class="kw">from</span> <span class="str">'bungate'</span>
+        <div class="install-box" style="margin-top: 24px">
+          <div
+            class="prompt"
+            style="
+              display: block;
+              padding: 20px 24px;
+              overflow-x: auto;
+              white-space: pre;
+              line-height: 1.7;
+            "
+          >
+            <span class="cmt"
+              >// gateway.ts — production-ready in one file</span
+            >
+            <span class="kw">import</span> { BunGateway }
+            <span class="kw">from</span> <span class="str">'bungate'</span>
 
-<span class="kw">const</span> gateway = <span class="kw">new</span> <span class="fn">BunGateway</span>({
-  server: { port: <span class="num">3000</span> },
-  cluster: { enabled: <span class="kw">true</span>, workers: <span class="num">4</span> },
-  auth: { secret: process.env.<span class="fn">JWT_SECRET</span> },
-  metrics: { enabled: <span class="kw">true</span> },
-})
+            <span class="kw">const</span> gateway = <span class="kw">new</span>
+            <span class="fn">BunGateway</span>({ server: { port:
+            <span class="num">3000</span> }, cluster: { enabled:
+            <span class="kw">true</span>, workers: <span class="num">4</span> },
+            auth: { secret: process.env.<span class="fn">JWT_SECRET</span> },
+            metrics: { enabled: <span class="kw">true</span> }, }) gateway.<span
+              class="fn"
+              >addRoute</span
+            >({ pattern: <span class="str">'/api/*'</span>, loadBalancer: {
+            strategy: <span class="str">'least-connections'</span>, targets: [ {
+            url: <span class="str">'http://api1.example.com'</span> }, { url:
+            <span class="str">'http://api2.example.com'</span> }, ],
+            healthCheck: { enabled: <span class="kw">true</span>, interval:
+            <span class="num">15000</span>, path:
+            <span class="str">'/health'</span> }, }, circuitBreaker: { enabled:
+            <span class="kw">true</span>, failureThreshold:
+            <span class="num">5</span> }, })
 
-gateway.<span class="fn">addRoute</span>({
-  pattern: <span class="str">'/api/*'</span>,
-  loadBalancer: {
-    strategy: <span class="str">'least-connections'</span>,
-    targets: [
-      { url: <span class="str">'http://api1.example.com'</span> },
-      { url: <span class="str">'http://api2.example.com'</span> },
-    ],
-    healthCheck: { enabled: <span class="kw">true</span>, interval: <span class="num">15000</span>, path: <span class="str">'/health'</span> },
-  },
-  circuitBreaker: { enabled: <span class="kw">true</span>, failureThreshold: <span class="num">5</span> },
-})
-
-<span class="kw">await</span> gateway.<span class="fn">listen</span>()
-console.<span class="fn">log</span>(<span class="str">'🚀 Bungate cluster running on :3000'</span>)
+            <span class="kw">await</span> gateway.<span class="fn">listen</span
+            >() console.<span class="fn">log</span>(<span class="str"
+              >'🚀 Bungate cluster running on :3000'</span
+            >)
           </div>
         </div>
       </div>
     </section>
 
     <!-- Security -->
-    <section style="background:rgba(255,255,255,0.01);">
+    <section style="background: rgba(255, 255, 255, 0.01)">
       <div class="section-inner">
         <div class="section-label">Enterprise Security</div>
         <h2 class="section-title">Battle-tested security defaults</h2>
-        <p class="section-desc">Every request passes through a defense-in-depth pipeline — from TLS termination to JWT validation to input sanitization.</p>
+        <p class="section-desc">
+          Every request passes through a defense-in-depth pipeline — from TLS
+          termination to JWT validation to input sanitization.
+        </p>
 
         <div class="security-row">
           <span class="badge g">✓ TLS 1.3</span>
@@ -472,136 +1225,378 @@ console.<span class="fn">log</span>(<span class="str">'🚀 Bungate cluster runn
           <span class="badge g">✓ CSRF Protection</span>
         </div>
 
-        <div class="install-box" style="margin-top:32px;">
-          <div class="prompt" style="display:block;padding:20px 24px;overflow-x:auto;white-space:pre;line-height:1.7;">
-<span class="cmt">// TLS 1.3 + JWT key rotation — zero-downtime</span>
-<span class="kw">const</span> gateway = <span class="kw">new</span> <span class="fn">BunGateway</span>({
-  security: {
-    tls: {
-      enabled: <span class="kw">true</span>,
-      cert: <span class="str">'./cert.pem'</span>,
-      key: <span class="str">'./key.pem'</span>,
-      minVersion: <span class="str">'TLSv1.3'</span>,
-      cipherSuites: [<span class="str">'TLS_AES_256_GCM_SHA384'</span>, <span class="str">'TLS_CHACHA20_POLY1305_SHA256'</span>],
-      redirectHTTP: <span class="kw">true</span>,
-    },
-    jwtKeyRotation: {
-      secrets: [
-        { key: process.env.<span class="fn">JWT_NEW</span>, kid: <span class="str">'2025-05'</span>, primary: <span class="kw">true</span> },
-        { key: process.env.<span class="fn">JWT_OLD</span>, kid: <span class="str">'2025-04'</span>, deprecated: <span class="kw">true</span> },
-      ],
-      jwksUri: <span class="str">'https://auth.example.com/.well-known/jwks.json'</span>,
-      jwksRefreshInterval: <span class="num">3600000</span>,
-    },
-    inputValidation: {
-      maxPathLength: <span class="num">2048</span>,
-      maxHeaderSize: <span class="num">16384</span>,
-      blockedPatterns: [<span class="str">/\\.\\./</span>, <span class="str">/%00/</span>, <span class="str">/&lt;script&gt;/i</span>],
-    },
-  },
-})
+        <div class="install-box" style="margin-top: 32px">
+          <div
+            class="prompt"
+            style="
+              display: block;
+              padding: 20px 24px;
+              overflow-x: auto;
+              white-space: pre;
+              line-height: 1.7;
+            "
+          >
+            <span class="cmt"
+              >// TLS 1.3 + JWT key rotation — zero-downtime</span
+            >
+            <span class="kw">const</span> gateway = <span class="kw">new</span>
+            <span class="fn">BunGateway</span>({ security: { tls: { enabled:
+            <span class="kw">true</span>, cert:
+            <span class="str">'./cert.pem'</span>, key:
+            <span class="str">'./key.pem'</span>, minVersion:
+            <span class="str">'TLSv1.3'</span>, cipherSuites: [<span class="str"
+              >'TLS_AES_256_GCM_SHA384'</span
+            >, <span class="str">'TLS_CHACHA20_POLY1305_SHA256'</span>],
+            redirectHTTP: <span class="kw">true</span>, }, jwtKeyRotation: {
+            secrets: [ { key: process.env.<span class="fn">JWT_NEW</span>, kid:
+            <span class="str">'2025-05'</span>, primary:
+            <span class="kw">true</span> }, { key: process.env.<span class="fn"
+              >JWT_OLD</span
+            >, kid: <span class="str">'2025-04'</span>, deprecated:
+            <span class="kw">true</span> }, ], jwksUri:
+            <span class="str"
+              >'https://auth.example.com/.well-known/jwks.json'</span
+            >, jwksRefreshInterval: <span class="num">3600000</span>, },
+            inputValidation: { maxPathLength: <span class="num">2048</span>,
+            maxHeaderSize: <span class="num">16384</span>, blockedPatterns:
+            [<span class="str">/\\.\\./</span>, <span class="str">/%00/</span>,
+            <span class="str">/&lt;script&gt;/i</span>], }, }, })
           </div>
         </div>
       </div>
     </section>
 
     <!-- Security Coverage & Pentest -->
-    <section style="padding:100px 24px;background:#0a0a0b;">
+    <section style="padding: 100px 24px; background: #0a0a0b">
       <div class="section-inner">
         <div class="section-label">Security Coverage</div>
-        <h2 class="section-title">Penetration tested. 803 tests. Zero failures.</h2>
-        <p class="section-sub" style="color:#94a3b8;max-width:720px;margin:0 auto 48px;font-size:16px;line-height:1.6;">
-          Bungate underwent a comprehensive security audit in an isolated Docker environment.
-          Every vulnerability found was fixed and verified before shipping. Here's the real data.
+        <h2 class="section-title">
+          Penetration tested. 803 tests. Zero failures.
+        </h2>
+        <p
+          class="section-sub"
+          style="
+            color: #94a3b8;
+            max-width: 720px;
+            margin: 0 auto 48px;
+            font-size: 16px;
+            line-height: 1.6;
+          "
+        >
+          Bungate underwent a comprehensive security audit in an isolated Docker
+          environment. Every vulnerability found was fixed and verified before
+          shipping. Here's the real data.
         </p>
 
         <!-- Pentest Results -->
-        <div class="grid-3" style="margin-bottom:48px;">
-          <div class="card" style="border-left:3px solid #38bdf8;">
-            <div class="card-icon blue" style="font-size:28px;">&#128737;</div>
-            <h3 style="color:#fff;margin:12px 0 4px;font-size:18px;">Pentest Verified</h3>
-            <p style="color:#94a3b8;font-size:14px;line-height:1.55;">
-              Full security audit with exploit simulation: double-encoding traversal, health check cascade DoS, X-Forwarded-For rate limit bypass, CORS evasion. All 4 vulnerabilities <strong style="color:#38bdf8;">found and fixed</strong>.
+        <div class="grid-3" style="margin-bottom: 48px">
+          <div class="card" style="border-left: 3px solid #38bdf8">
+            <div class="card-icon blue" style="font-size: 28px">&#128737;</div>
+            <h3 style="color: #fff; margin: 12px 0 4px; font-size: 18px">
+              Pentest Verified
+            </h3>
+            <p style="color: #94a3b8; font-size: 14px; line-height: 1.55">
+              Full security audit with exploit simulation: double-encoding
+              traversal, health check cascade DoS, X-Forwarded-For rate limit
+              bypass, CORS evasion. All 4 vulnerabilities
+              <strong style="color: #38bdf8">found and fixed</strong>.
             </p>
           </div>
-          <div class="card" style="border-left:3px solid #22c55e;">
-            <div class="card-icon blue" style="font-size:28px;">&#9989;</div>
-            <h3 style="color:#fff;margin:12px 0 4px;font-size:18px;">Zero Regressions</h3>
-            <p style="color:#94a3b8;font-size:14px;line-height:1.55;">
-              Every security fix validated against the full 803-test suite. <strong style="color:#22c55e;">633 to 803 tests</strong> during coverage improvement. Zero pre-existing tests broken by security patches.
+          <div class="card" style="border-left: 3px solid #22c55e">
+            <div class="card-icon blue" style="font-size: 28px">&#9989;</div>
+            <h3 style="color: #fff; margin: 12px 0 4px; font-size: 18px">
+              Zero Regressions
+            </h3>
+            <p style="color: #94a3b8; font-size: 14px; line-height: 1.55">
+              Every security fix validated against the full 803-test suite.
+              <strong style="color: #22c55e">633 to 803 tests</strong> during
+              coverage improvement. Zero pre-existing tests broken by security
+              patches.
             </p>
           </div>
-          <div class="card" style="border-left:3px solid #a78bfa;">
-            <div class="card-icon blue" style="font-size:28px;">&#128300;</div>
-            <h3 style="color:#fff;margin:12px 0 4px;font-size:18px;">Recursive Decode Engine</h3>
-            <p style="color:#94a3b8;font-size:14px;line-height:1.55;">
-              Custom <code style="color:#a78bfa;">recursiveDecodeURIComponent()</code> defeats multi-layer encoding attacks (<code>%252f</code> to <code>%2f</code> to <code>/</code>). Two-pass validation: raw path then fully-decoded path.
+          <div class="card" style="border-left: 3px solid #a78bfa">
+            <div class="card-icon blue" style="font-size: 28px">&#128300;</div>
+            <h3 style="color: #fff; margin: 12px 0 4px; font-size: 18px">
+              Recursive Decode Engine
+            </h3>
+            <p style="color: #94a3b8; font-size: 14px; line-height: 1.55">
+              Custom
+              <code style="color: #a78bfa">recursiveDecodeURIComponent()</code>
+              defeats multi-layer encoding attacks (<code>%252f</code> to
+              <code>%2f</code> to <code>/</code>). Two-pass validation: raw path
+              then fully-decoded path.
             </p>
           </div>
         </div>
 
         <!-- Coverage Stats -->
-        <div style="background:rgba(56,189,248,0.04);border:1px solid rgba(56,189,248,0.12);border-radius:16px;padding:40px 48px;margin-bottom:32px;">
-          <div style="display:flex;gap:48px;flex-wrap:wrap;justify-content:center;align-items:center;">
-            <div style="text-align:center;">
-              <div style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:800;color:#22c55e;">98.97%</div>
-              <div style="color:#94a3b8;font-size:13px;margin-top:4px;">Line Coverage</div>
+        <div
+          style="
+            background: rgba(56, 189, 248, 0.04);
+            border: 1px solid rgba(56, 189, 248, 0.12);
+            border-radius: 16px;
+            padding: 40px 48px;
+            margin-bottom: 32px;
+          "
+        >
+          <div
+            style="
+              display: flex;
+              gap: 48px;
+              flex-wrap: wrap;
+              justify-content: center;
+              align-items: center;
+            "
+          >
+            <div style="text-align: center">
+              <div
+                style="
+                  font-family: 'JetBrains Mono', monospace;
+                  font-size: 48px;
+                  font-weight: 800;
+                  color: #22c55e;
+                "
+              >
+                98.97%
+              </div>
+              <div style="color: #94a3b8; font-size: 13px; margin-top: 4px">
+                Line Coverage
+              </div>
             </div>
-            <div style="text-align:center;">
-              <div style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:800;color:#38bdf8;">94.55%</div>
-              <div style="color:#94a3b8;font-size:13px;margin-top:4px;">Function Coverage</div>
+            <div style="text-align: center">
+              <div
+                style="
+                  font-family: 'JetBrains Mono', monospace;
+                  font-size: 48px;
+                  font-weight: 800;
+                  color: #38bdf8;
+                "
+              >
+                94.55%
+              </div>
+              <div style="color: #94a3b8; font-size: 13px; margin-top: 4px">
+                Function Coverage
+              </div>
             </div>
-            <div style="text-align:center;">
-              <div style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:800;color:#a78bfa;">803</div>
-              <div style="color:#94a3b8;font-size:13px;margin-top:4px;">Tests (44 files)</div>
+            <div style="text-align: center">
+              <div
+                style="
+                  font-family: 'JetBrains Mono', monospace;
+                  font-size: 48px;
+                  font-weight: 800;
+                  color: #a78bfa;
+                "
+              >
+                803
+              </div>
+              <div style="color: #94a3b8; font-size: 13px; margin-top: 4px">
+                Tests (44 files)
+              </div>
             </div>
-            <div style="text-align:center;">
-              <div style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:800;color:#f59e0b;">0</div>
-              <div style="color:#94a3b8;font-size:13px;margin-top:4px;">Failures</div>
+            <div style="text-align: center">
+              <div
+                style="
+                  font-family: 'JetBrains Mono', monospace;
+                  font-size: 48px;
+                  font-weight: 800;
+                  color: #f59e0b;
+                "
+              >
+                0
+              </div>
+              <div style="color: #94a3b8; font-size: 13px; margin-top: 4px">
+                Failures
+              </div>
             </div>
           </div>
         </div>
 
         <!-- Security Fix Details -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">
-          <div style="background:#0f0f12;border:1px solid #1a1a1f;border-radius:12px;padding:20px 24px;">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-              <span style="font-size:20px;">&#128274;</span>
-              <span style="color:#fff;font-weight:600;font-size:15px;">Input Validation</span>
-              <span style="background:rgba(239,68,68,0.15);color:#ef4444;font-size:11px;padding:2px 8px;border-radius:10px;margin-left:auto;">FIXED</span>
+        <div
+          style="
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+          "
+        >
+          <div
+            style="
+              background: #0f0f12;
+              border: 1px solid #1a1a1f;
+              border-radius: 12px;
+              padding: 20px 24px;
+            "
+          >
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 8px;
+              "
+            >
+              <span style="font-size: 20px">&#128274;</span>
+              <span style="color: #fff; font-weight: 600; font-size: 15px"
+                >Input Validation</span
+              >
+              <span
+                style="
+                  background: rgba(239, 68, 68, 0.15);
+                  color: #ef4444;
+                  font-size: 11px;
+                  padding: 2px 8px;
+                  border-radius: 10px;
+                  margin-left: auto;
+                "
+                >FIXED</span
+              >
             </div>
-            <p style="color:#94a3b8;font-size:13px;line-height:1.55;margin:0;">
-              Double-encoding (<code>%252f</code>) and quad-dot traversal now defeated by recursive decode + two-pass validation + expanded blocked patterns.
+            <p
+              style="
+                color: #94a3b8;
+                font-size: 13px;
+                line-height: 1.55;
+                margin: 0;
+              "
+            >
+              Double-encoding (<code>%252f</code>) and quad-dot traversal now
+              defeated by recursive decode + two-pass validation + expanded
+              blocked patterns.
             </p>
           </div>
-          <div style="background:#0f0f12;border:1px solid #1a1a1f;border-radius:12px;padding:20px 24px;">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-              <span style="font-size:20px;">&#9878;</span>
-              <span style="color:#fff;font-weight:600;font-size:15px;">Cascade Failure</span>
-              <span style="background:rgba(239,68,68,0.15);color:#ef4444;font-size:11px;padding:2px 8px;border-radius:10px;margin-left:auto;">FIXED</span>
+          <div
+            style="
+              background: #0f0f12;
+              border: 1px solid #1a1a1f;
+              border-radius: 12px;
+              padding: 20px 24px;
+            "
+          >
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 8px;
+              "
+            >
+              <span style="font-size: 20px">&#9878;</span>
+              <span style="color: #fff; font-weight: 600; font-size: 15px"
+                >Cascade Failure</span
+              >
+              <span
+                style="
+                  background: rgba(239, 68, 68, 0.15);
+                  color: #ef4444;
+                  font-size: 11px;
+                  padding: 2px 8px;
+                  border-radius: 10px;
+                  margin-left: auto;
+                "
+                >FIXED</span
+              >
             </div>
-            <p style="color:#94a3b8;font-size:13px;line-height:1.55;margin:0;">
-              Threshold-based health checks: 3 consecutive failures to mark unhealthy, 2 successes to recover. Min-healthy floor prevents complete cascade.
+            <p
+              style="
+                color: #94a3b8;
+                font-size: 13px;
+                line-height: 1.55;
+                margin: 0;
+              "
+            >
+              Threshold-based health checks: 3 consecutive failures to mark
+              unhealthy, 2 successes to recover. Min-healthy floor prevents
+              complete cascade.
             </p>
           </div>
-          <div style="background:#0f0f12;border:1px solid #1a1a1f;border-radius:12px;padding:20px 24px;">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-              <span style="font-size:20px;">&#128200;</span>
-              <span style="color:#fff;font-weight:600;font-size:15px;">Rate Limit Bypass</span>
-              <span style="background:rgba(245,158,11,0.15);color:#f59e0b;font-size:11px;padding:2px 8px;border-radius:10px;margin-left:auto;">FIXED</span>
+          <div
+            style="
+              background: #0f0f12;
+              border: 1px solid #1a1a1f;
+              border-radius: 12px;
+              padding: 20px 24px;
+            "
+          >
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 8px;
+              "
+            >
+              <span style="font-size: 20px">&#128200;</span>
+              <span style="color: #fff; font-weight: 600; font-size: 15px"
+                >Rate Limit Bypass</span
+              >
+              <span
+                style="
+                  background: rgba(245, 158, 11, 0.15);
+                  color: #f59e0b;
+                  font-size: 11px;
+                  padding: 2px 8px;
+                  border-radius: 10px;
+                  margin-left: auto;
+                "
+                >FIXED</span
+              >
             </div>
-            <p style="color:#94a3b8;font-size:13px;line-height:1.55;margin:0;">
-              Rate limiter now keys on the gateway's <code>getClientIP()</code> via trusted proxy validator. X-Forwarded-For rotation no longer bypasses limits.
+            <p
+              style="
+                color: #94a3b8;
+                font-size: 13px;
+                line-height: 1.55;
+                margin: 0;
+              "
+            >
+              Rate limiter now keys on the gateway's
+              <code>getClientIP()</code> via trusted proxy validator.
+              X-Forwarded-For rotation no longer bypasses limits.
             </p>
           </div>
-          <div style="background:#0f0f12;border:1px solid #1a1a1f;border-radius:12px;padding:20px 24px;">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-              <span style="font-size:20px;">&#127760;</span>
-              <span style="color:#fff;font-weight:600;font-size:15px;">Error Handler</span>
-              <span style="background:rgba(245,158,11,0.15);color:#f59e0b;font-size:11px;padding:2px 8px;border-radius:10px;margin-left:auto;">FIXED</span>
+          <div
+            style="
+              background: #0f0f12;
+              border: 1px solid #1a1a1f;
+              border-radius: 12px;
+              padding: 20px 24px;
+            "
+          >
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 8px;
+              "
+            >
+              <span style="font-size: 20px">&#127760;</span>
+              <span style="color: #fff; font-weight: 600; font-size: 15px"
+                >Error Handler</span
+              >
+              <span
+                style="
+                  background: rgba(245, 158, 11, 0.15);
+                  color: #f59e0b;
+                  font-size: 11px;
+                  padding: 2px 8px;
+                  border-radius: 10px;
+                  margin-left: auto;
+                "
+                >FIXED</span
+              >
             </div>
-            <p style="color:#94a3b8;font-size:13px;line-height:1.55;margin:0;">
-              Global error handler properly catches exceptions. CORS preflight returns clean 204. No more stack trace or internal file path leakage.
+            <p
+              style="
+                color: #94a3b8;
+                font-size: 13px;
+                line-height: 1.55;
+                margin: 0;
+              "
+            >
+              Global error handler properly catches exceptions. CORS preflight
+              returns clean 204. No more stack trace or internal file path
+              leakage.
             </p>
           </div>
         </div>
@@ -609,74 +1604,160 @@ console.<span class="fn">log</span>(<span class="str">'🚀 Bungate cluster runn
     </section>
 
     <!-- CTA -->
-    <section style="text-align:center;padding:100px 24px 120px;background:radial-gradient(ellipse at 50% 50%, rgba(56,189,248,0.05) 0%, transparent 70%);">
-      <h2 style="font-size:clamp(28px,3.5vw,40px);font-weight:700;color:#fff;letter-spacing:-1px;margin-bottom:12px;">Ready to ship faster?</h2>
-      <p style="font-size:16px;color:var(--text-secondary);margin-bottom:32px;">Enterprise security, zero config. Install and deploy in minutes.</p>
-      <a href="https://github.com/BackendStack21/bungate" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:8px;padding:14px 36px;border-radius:var(--radius-md);font-size:16px;font-weight:500;text-decoration:none;background:var(--accent);color:#000;">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+    <section
+      style="
+        text-align: center;
+        padding: 100px 24px 120px;
+        background: radial-gradient(
+          ellipse at 50% 50%,
+          rgba(56, 189, 248, 0.05) 0%,
+          transparent 70%
+        );
+      "
+    >
+      <h2
+        style="
+          font-size: clamp(28px, 3.5vw, 40px);
+          font-weight: 700;
+          color: #fff;
+          letter-spacing: -1px;
+          margin-bottom: 12px;
+        "
+      >
+        Ready to ship faster?
+      </h2>
+      <p
+        style="
+          font-size: 16px;
+          color: var(--text-secondary);
+          margin-bottom: 32px;
+        "
+      >
+        Enterprise security, zero config. Install and deploy in minutes.
+      </p>
+      <a
+        href="https://github.com/BackendStack21/bungate"
+        class="btn btn-primary"
+        style="
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 14px 36px;
+          border-radius: var(--radius-md);
+          font-size: 16px;
+          font-weight: 500;
+          text-decoration: none;
+          background: var(--accent);
+          color: #000;
+        "
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"
+          />
+        </svg>
         View on GitHub
       </a>
     </section>
 
-    <footer style="border-top:1px solid var(--border-subtle);padding:40px 24px;text-align:center;color:var(--text-tertiary);font-size:13px;">
+    <footer
+      style="
+        border-top: 1px solid var(--border-subtle);
+        padding: 40px 24px;
+        text-align: center;
+        color: var(--text-tertiary);
+        font-size: 13px;
+      "
+    >
       <p>
-        Built with ❤️ by <a href="https://21no.de" style="color:var(--text-secondary);text-decoration:none;">21no.de</a> — AI-native infrastructure and systems engineering research lab.
-        <br>
-        © 2026 — 
-        <a href="https://github.com/BackendStack21/bungate" style="color:var(--text-secondary);text-decoration:none;">GitHub</a> ·
-        <a href="https://www.npmjs.com/package/bungate" style="color:var(--text-secondary);text-decoration:none;">npm</a> ·
-        <a href="https://github.com/BackendStack21/bungate/blob/main/docs/DOCUMENTATION.md" style="color:var(--text-secondary);text-decoration:none;">Documentation</a>
+        Built with ❤️ by
+        <a
+          href="https://21no.de"
+          style="color: var(--text-secondary); text-decoration: none"
+          >21no.de</a
+        >
+        — AI-native infrastructure and systems engineering research lab.
+        <br />
+        © 2026 —
+        <a
+          href="https://github.com/BackendStack21/bungate"
+          style="color: var(--text-secondary); text-decoration: none"
+          >GitHub</a
+        >
+        ·
+        <a
+          href="https://www.npmjs.com/package/bungate"
+          style="color: var(--text-secondary); text-decoration: none"
+          >npm</a
+        >
+        ·
+        <a
+          href="https://github.com/BackendStack21/bungate/blob/main/docs/DOCUMENTATION.md"
+          style="color: var(--text-secondary); text-decoration: none"
+          >Documentation</a
+        >
       </p>
     </footer>
 
     <script>
       // Copy code block
-      document.querySelectorAll('.install-box .prompt:last-of-type code, .install-box .prompt:nth-child(2)').forEach(function(el) {
-        el.style.cursor = 'pointer';
-        el.title = 'Click to copy';
-        el.addEventListener('click', function() {
-          var text = el.textContent || el.innerText;
-          navigator.clipboard.writeText(text).then(function() {
-            var orig = el.style.background;
-            el.style.background = 'rgba(56,189,248,0.15)';
-            setTimeout(function() { el.style.background = orig; }, 600);
-          });
-        });
-      });
+      document
+        .querySelectorAll(
+          '.install-box .prompt:last-of-type code, .install-box .prompt:nth-child(2)',
+        )
+        .forEach(function (el) {
+          el.style.cursor = 'pointer'
+          el.title = 'Click to copy'
+          el.addEventListener('click', function () {
+            var text = el.textContent || el.innerText
+            navigator.clipboard.writeText(text).then(function () {
+              var orig = el.style.background
+              el.style.background = 'rgba(56,189,248,0.15)'
+              setTimeout(function () {
+                el.style.background = orig
+              }, 600)
+            })
+          })
+        })
 
       // Use Case Carousel
-      (function(){
-        var slides = document.querySelectorAll('.use-slide');
-        var dots = document.querySelectorAll('.use-dot');
-        var current = 0;
-        var interval = 6000;
-        var timer;
+      ;(function () {
+        var slides = document.querySelectorAll('.use-slide')
+        var dots = document.querySelectorAll('.use-dot')
+        var current = 0
+        var interval = 6000
+        var timer
 
         function show(idx) {
-          slides[current].classList.remove('active');
-          dots[current].classList.remove('active');
-          current = (idx + slides.length) % slides.length;
-          slides[current].classList.add('active');
-          dots[current].classList.add('active');
+          slides[current].classList.remove('active')
+          dots[current].classList.remove('active')
+          current = (idx + slides.length) % slides.length
+          slides[current].classList.add('active')
+          dots[current].classList.add('active')
         }
 
-        function next() { show(current + 1); }
+        function next() {
+          show(current + 1)
+        }
 
-        dots.forEach(function(dot) {
-          dot.addEventListener('click', function() {
-            show(parseInt(this.dataset.index));
-            clearInterval(timer);
-            timer = setInterval(next, interval);
-          });
-        });
+        dots.forEach(function (dot) {
+          dot.addEventListener('click', function () {
+            show(parseInt(this.dataset.index))
+            clearInterval(timer)
+            timer = setInterval(next, interval)
+          })
+        })
 
-        timer = setInterval(next, interval);
+        timer = setInterval(next, interval)
 
-        var carousel = document.querySelector('.use-carousel');
-        carousel.addEventListener('mouseenter', function(){ clearInterval(timer); });
-        carousel.addEventListener('mouseleave', function(){ timer = setInterval(next, interval); });
-      })();
+        var carousel = document.querySelector('.use-carousel')
+        carousel.addEventListener('mouseenter', function () {
+          clearInterval(timer)
+        })
+        carousel.addEventListener('mouseleave', function () {
+          timer = setInterval(next, interval)
+        })
+      })()
     </script>
-
   </body>
 </html>

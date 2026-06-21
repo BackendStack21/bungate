@@ -381,7 +381,8 @@ describe('IP-Hash Load Balancer E2E Tests', () => {
 
     // Verify custom headers were passed through
     expect(data.headers['x-test-header']).toBe('ip-hash-test')
-    expect(data.headers['authorization']).toBe('Bearer ip-hash-token')
+    // Authorization is stripped from proxied requests for security
+    expect(data.headers['authorization']).toBeUndefined()
     expect(data.headers['x-session-id']).toBe('session-123')
     expect(data.server).toMatch(/echo-[123]/)
   })

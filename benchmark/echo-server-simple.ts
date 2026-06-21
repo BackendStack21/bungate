@@ -1,8 +1,22 @@
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * FOR BENCHMARKING ONLY — NOT FOR PRODUCTION
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+
 const serverId = process.env.SERVER_ID || 'unknown'
 const port = parseInt(process.env.SERVER_PORT || '8080')
 
 let requestCount = 0
 let startTime = Date.now()
+
+const SENSITIVE_HEADERS = new Set([
+  'authorization',
+  'cookie',
+  'proxy-authorization',
+  'x-api-key',
+  'x-metrics-key',
+])
 
 const server = Bun.serve({
   port,
@@ -19,7 +33,14 @@ const server = Bun.serve({
       })
     }
 
-    // Echo endpoint with server info
+    // Echo endpoint with server info — redact sensitive headers
+    const safeHeaders: Record<string, string> = {}
+    for (const [name, value] of req.headers.entries()) {
+      safeHeaders[name] = SENSITIVE_HEADERS.has(name.toLowerCase())
+        ? '[REDACTED]'
+        : value
+    }
+
     const response = {
       server_id: serverId,
       request_count: requestCount,
@@ -27,16 +48,13 @@ const server = Bun.serve({
       timestamp: now,
       method: req.method,
       url: req.url,
-      headers: Object.fromEntries(req.headers.entries()),
+      headers: safeHeaders,
       remote_addr: req.headers.get('x-forwarded-for') || 'unknown',
     }
 
     return new Response(JSON.stringify(response, null, 2), {
       headers: {
         'Content-Type': 'application/json',
-        Server: `echo-server-${serverId}`,
-        'X-Request-Count': requestCount.toString(),
-        'X-Server-Id': serverId,
       },
     })
   },

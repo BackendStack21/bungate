@@ -27,7 +27,7 @@
     "format:check": "prettier --check ."
   },
   "devDependencies": {
-    "@types/bun": "latest",
+    "@types/bun": "^1.2.0",
     "prettier": "^3.6.2"
   },
   "main": "lib/index.js",

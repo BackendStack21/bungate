@@ -175,7 +175,7 @@ describe('TLSManager', () => {
       }
       const manager = new TLSManager(config)
       await expect(manager.loadCertificates()).rejects.toThrow(
-        'Failed to load certificate',
+        'Failed to load TLS certificate',
       )
     })
 
@@ -187,7 +187,7 @@ describe('TLSManager', () => {
       }
       const manager = new TLSManager(config)
       await expect(manager.loadCertificates()).rejects.toThrow(
-        'Failed to load private key',
+        'Failed to load TLS private key',
       )
     })
 

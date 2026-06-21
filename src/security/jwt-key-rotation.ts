@@ -187,13 +187,29 @@ export class JWTKeyRotationManager {
   }
 
   /**
-   * Signs a JWT token using the primary key
+   * Signs a JWT token using the primary key.
+   *
+   * Enforces minimum HMAC key length and always sets an expiration time.
    */
   async signToken(
     payload: JWTPayload,
     options?: { expiresIn?: string | number },
   ): Promise<string> {
     const primaryKey = this.getPrimaryKey()
+
+    // Enforce minimum key entropy for HMAC algorithms
+    if (primaryKey.algorithm.startsWith('HS')) {
+      const keyString =
+        typeof primaryKey.key === 'string'
+          ? primaryKey.key
+          : new TextDecoder().decode(primaryKey.key)
+      const minBits = parseInt(primaryKey.algorithm.replace(/\D/g, ''), 10)
+      if (Buffer.byteLength(keyString, 'utf8') * 8 < minBits) {
+        throw new Error(
+          `JWT key for ${primaryKey.algorithm} must be at least ${minBits} bits`,
+        )
+      }
+    }
 
     // Convert key to appropriate format
     const key =
@@ -208,13 +224,13 @@ export class JWTKeyRotationManager {
       })
       .setIssuedAt()
 
-    // Add expiration if specified
-    if (options?.expiresIn) {
-      if (typeof options.expiresIn === 'number') {
-        jwt.setExpirationTime(Math.floor(Date.now() / 1000) + options.expiresIn)
-      } else {
-        jwt.setExpirationTime(options.expiresIn)
-      }
+    // Default expiration to 1 hour if not specified. Tokens without an exp claim
+    // are dangerous because they remain valid forever if leaked.
+    const expiresIn = options?.expiresIn ?? '1h'
+    if (typeof expiresIn === 'number') {
+      jwt.setExpirationTime(Math.floor(Date.now() / 1000) + expiresIn)
+    } else {
+      jwt.setExpirationTime(expiresIn)
     }
 
     return jwt.sign(key)
@@ -231,6 +247,9 @@ export class JWTKeyRotationManager {
     if (this.jwksCache) {
       try {
         const result = await jwtVerify(token, this.jwksCache.jwks)
+        if (result.payload.exp == null) {
+          throw new Error('JWT token is missing the required exp claim')
+        }
         return {
           payload: result.payload,
           protectedHeader: result.protectedHeader,
@@ -258,6 +277,11 @@ export class JWTKeyRotationManager {
         const result = await jwtVerify(token, key, {
           algorithms: [secret.algorithm],
         })
+
+        // Reject tokens that do not contain an exp claim
+        if (result.payload.exp == null) {
+          throw new Error('JWT token is missing the required exp claim')
+        }
 
         // Check if this is a deprecated key
         const usedDeprecatedKey = secret.deprecated === true

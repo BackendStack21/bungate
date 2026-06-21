@@ -15,7 +15,11 @@ describe('JWTKeyRotationManager', () => {
     test('should create JWTKeyRotationManager instance', () => {
       const config: JWTKeyConfig = {
         secrets: [
-          { key: 'test-secret-key', algorithm: 'HS256', primary: true },
+          {
+            key: 'test-secret-key-at-least-32-bytes-long!',
+            algorithm: 'HS256',
+            primary: true,
+          },
         ],
       }
       manager = new JWTKeyRotationManager(config)
@@ -32,8 +36,16 @@ describe('JWTKeyRotationManager', () => {
     test('should throw error if multiple primary keys configured', () => {
       const config: JWTKeyConfig = {
         secrets: [
-          { key: 'key1', algorithm: 'HS256', primary: true },
-          { key: 'key2', algorithm: 'HS256', primary: true },
+          {
+            key: 'key1-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+          {
+            key: 'key2-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            primary: true,
+          },
         ],
       }
       expect(() => {
@@ -44,18 +56,29 @@ describe('JWTKeyRotationManager', () => {
     test('should auto-assign first key as primary if none specified', () => {
       const config: JWTKeyConfig = {
         secrets: [
-          { key: 'key1', algorithm: 'HS256' },
-          { key: 'key2', algorithm: 'HS256' },
+          {
+            key: 'key1-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+          },
+          {
+            key: 'key2-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+          },
         ],
       }
       manager = new JWTKeyRotationManager(config)
       const primaryKey = manager.getPrimaryKey()
-      expect(primaryKey.key).toBe('key1')
+      expect(primaryKey.key).toBe('key1-at-least-32-bytes-long-secret-key!')
     })
 
     test('should throw error for invalid algorithm', () => {
       const config: JWTKeyConfig = {
-        secrets: [{ key: 'test-key', algorithm: 'INVALID' as any }],
+        secrets: [
+          {
+            key: 'test-key-at-least-32-bytes-long-secret-key!!',
+            algorithm: 'INVALID' as any,
+          },
+        ],
       }
       expect(() => {
         new JWTKeyRotationManager(config)
@@ -77,7 +100,13 @@ describe('JWTKeyRotationManager', () => {
 
       for (const algorithm of algorithms) {
         const config: JWTKeyConfig = {
-          secrets: [{ key: 'test-key', algorithm, primary: true }],
+          secrets: [
+            {
+              key: 'test-key-at-least-32-bytes-long-secret-key!!',
+              algorithm,
+              primary: true,
+            },
+          ],
         }
         const mgr = new JWTKeyRotationManager(config)
         expect(mgr).toBeDefined()
@@ -90,26 +119,39 @@ describe('JWTKeyRotationManager', () => {
     test('should return the primary key', () => {
       const config: JWTKeyConfig = {
         secrets: [
-          { key: 'old-key', algorithm: 'HS256' },
-          { key: 'new-key', algorithm: 'HS256', primary: true },
+          {
+            key: 'old-key-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+          },
+          {
+            key: 'new-key-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            primary: true,
+          },
         ],
       }
       manager = new JWTKeyRotationManager(config)
       const primaryKey = manager.getPrimaryKey()
-      expect(primaryKey.key).toBe('new-key')
+      expect(primaryKey.key).toBe('new-key-at-least-32-bytes-long-secret-key!')
       expect(primaryKey.primary).toBe(true)
     })
 
     test('should return first key if no primary specified', () => {
       const config: JWTKeyConfig = {
         secrets: [
-          { key: 'first-key', algorithm: 'HS256' },
-          { key: 'second-key', algorithm: 'HS256' },
+          {
+            key: 'first-key-at-least-32-bytes-long-secret-key',
+            algorithm: 'HS256',
+          },
+          {
+            key: 'second-key-at-least-32-bytes-long-secret-key',
+            algorithm: 'HS256',
+          },
         ],
       }
       manager = new JWTKeyRotationManager(config)
       const primaryKey = manager.getPrimaryKey()
-      expect(primaryKey.key).toBe('first-key')
+      expect(primaryKey.key).toBe('first-key-at-least-32-bytes-long-secret-key')
     })
   })
 
@@ -117,7 +159,11 @@ describe('JWTKeyRotationManager', () => {
     test('should sign a token with primary key', async () => {
       const config: JWTKeyConfig = {
         secrets: [
-          { key: 'test-secret-key', algorithm: 'HS256', primary: true },
+          {
+            key: 'test-secret-key-at-least-32-bytes-long!',
+            algorithm: 'HS256',
+            primary: true,
+          },
         ],
       }
       manager = new JWTKeyRotationManager(config)
@@ -133,7 +179,11 @@ describe('JWTKeyRotationManager', () => {
     test('should sign token with expiration', async () => {
       const config: JWTKeyConfig = {
         secrets: [
-          { key: 'test-secret-key', algorithm: 'HS256', primary: true },
+          {
+            key: 'test-secret-key-at-least-32-bytes-long!',
+            algorithm: 'HS256',
+            primary: true,
+          },
         ],
       }
       manager = new JWTKeyRotationManager(config)
@@ -152,7 +202,7 @@ describe('JWTKeyRotationManager', () => {
       const config: JWTKeyConfig = {
         secrets: [
           {
-            key: 'test-secret-key',
+            key: 'test-secret-key-at-least-32-bytes-long!',
             algorithm: 'HS256',
             primary: true,
             kid: 'key-2024-01',
@@ -172,7 +222,11 @@ describe('JWTKeyRotationManager', () => {
     test('should verify a valid token', async () => {
       const config: JWTKeyConfig = {
         secrets: [
-          { key: 'test-secret-key', algorithm: 'HS256', primary: true },
+          {
+            key: 'test-secret-key-at-least-32-bytes-long!',
+            algorithm: 'HS256',
+            primary: true,
+          },
         ],
       }
       manager = new JWTKeyRotationManager(config)
@@ -189,7 +243,11 @@ describe('JWTKeyRotationManager', () => {
     test('should reject invalid token', async () => {
       const config: JWTKeyConfig = {
         secrets: [
-          { key: 'test-secret-key', algorithm: 'HS256', primary: true },
+          {
+            key: 'test-secret-key-at-least-32-bytes-long!',
+            algorithm: 'HS256',
+            primary: true,
+          },
         ],
       }
       manager = new JWTKeyRotationManager(config)
@@ -201,14 +259,26 @@ describe('JWTKeyRotationManager', () => {
 
     test('should reject token signed with different key', async () => {
       const config1: JWTKeyConfig = {
-        secrets: [{ key: 'key1', algorithm: 'HS256', primary: true }],
+        secrets: [
+          {
+            key: 'key1-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+        ],
       }
       const manager1 = new JWTKeyRotationManager(config1)
       const token = await manager1.signToken({ userId: '123' })
       manager1.destroy()
 
       const config2: JWTKeyConfig = {
-        secrets: [{ key: 'key2', algorithm: 'HS256', primary: true }],
+        secrets: [
+          {
+            key: 'key2-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+        ],
       }
       manager = new JWTKeyRotationManager(config2)
 
@@ -220,15 +290,29 @@ describe('JWTKeyRotationManager', () => {
     test('should verify token with any configured secret', async () => {
       const config: JWTKeyConfig = {
         secrets: [
-          { key: 'new-key', algorithm: 'HS256', primary: true },
-          { key: 'old-key', algorithm: 'HS256', deprecated: true },
+          {
+            key: 'new-key-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+          {
+            key: 'old-key-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            deprecated: true,
+          },
         ],
       }
       manager = new JWTKeyRotationManager(config)
 
       // Create a token with the old key
       const oldConfig: JWTKeyConfig = {
-        secrets: [{ key: 'old-key', algorithm: 'HS256', primary: true }],
+        secrets: [
+          {
+            key: 'old-key-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+        ],
       }
       const oldManager = new JWTKeyRotationManager(oldConfig)
       const token = await oldManager.signToken({ userId: '123' })
@@ -243,16 +327,32 @@ describe('JWTKeyRotationManager', () => {
     test('should try secrets in order', async () => {
       const config: JWTKeyConfig = {
         secrets: [
-          { key: 'key1', algorithm: 'HS256', primary: true },
-          { key: 'key2', algorithm: 'HS256' },
-          { key: 'key3', algorithm: 'HS256' },
+          {
+            key: 'key1-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+          {
+            key: 'key2-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+          },
+          {
+            key: 'key3-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+          },
         ],
       }
       manager = new JWTKeyRotationManager(config)
 
       // Create token with key3
       const key3Config: JWTKeyConfig = {
-        secrets: [{ key: 'key3', algorithm: 'HS256', primary: true }],
+        secrets: [
+          {
+            key: 'key3-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+        ],
       }
       const key3Manager = new JWTKeyRotationManager(key3Config)
       const token = await key3Manager.signToken({ userId: '123' })
@@ -271,9 +371,13 @@ describe('JWTKeyRotationManager', () => {
 
       const config: JWTKeyConfig = {
         secrets: [
-          { key: 'new-key', algorithm: 'HS256', primary: true },
           {
-            key: 'old-key',
+            key: 'new-key-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+          {
+            key: 'old-key-at-least-32-bytes-long-secret-key!',
             algorithm: 'HS256',
             deprecated: true,
             kid: 'old-key-id',
@@ -284,7 +388,13 @@ describe('JWTKeyRotationManager', () => {
 
       // Create token with old key
       const oldConfig: JWTKeyConfig = {
-        secrets: [{ key: 'old-key', algorithm: 'HS256', primary: true }],
+        secrets: [
+          {
+            key: 'old-key-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+        ],
       }
       const oldManager = new JWTKeyRotationManager(oldConfig)
       const token = await oldManager.signToken({ userId: '123' })
@@ -299,9 +409,13 @@ describe('JWTKeyRotationManager', () => {
     test('should skip expired keys during verification', async () => {
       const config: JWTKeyConfig = {
         secrets: [
-          { key: 'new-key', algorithm: 'HS256', primary: true },
           {
-            key: 'expired-key',
+            key: 'new-key-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+          {
+            key: 'expired-key-at-least-32-bytes-long-secret-key',
             algorithm: 'HS256',
             expiresAt: Date.now() - 1000,
           },
@@ -311,7 +425,13 @@ describe('JWTKeyRotationManager', () => {
 
       // Create token with expired key
       const expiredConfig: JWTKeyConfig = {
-        secrets: [{ key: 'expired-key', algorithm: 'HS256', primary: true }],
+        secrets: [
+          {
+            key: 'expired-key-at-least-32-bytes-long-secret-key',
+            algorithm: 'HS256',
+            primary: true,
+          },
+        ],
       }
       const expiredManager = new JWTKeyRotationManager(expiredConfig)
       const token = await expiredManager.signToken({ userId: '123' })
@@ -325,7 +445,13 @@ describe('JWTKeyRotationManager', () => {
   describe('rotateKeys', () => {
     test('should mark current primary as deprecated', () => {
       const config: JWTKeyConfig = {
-        secrets: [{ key: 'current-key', algorithm: 'HS256', primary: true }],
+        secrets: [
+          {
+            key: 'current-key-at-least-32-bytes-long-secret-key',
+            algorithm: 'HS256',
+            primary: true,
+          },
+        ],
         gracePeriod: 86400000, // 24 hours
       }
       manager = new JWTKeyRotationManager(config)
@@ -343,7 +469,13 @@ describe('JWTKeyRotationManager', () => {
     test('should set expiration based on grace period', () => {
       const gracePeriod = 3600000 // 1 hour
       const config: JWTKeyConfig = {
-        secrets: [{ key: 'current-key', algorithm: 'HS256', primary: true }],
+        secrets: [
+          {
+            key: 'current-key-at-least-32-bytes-long-secret-key',
+            algorithm: 'HS256',
+            primary: true,
+          },
+        ],
         gracePeriod,
       }
       manager = new JWTKeyRotationManager(config)
@@ -372,7 +504,7 @@ describe('JWTKeyRotationManager', () => {
       const config: JWTKeyConfig = {
         secrets: [
           {
-            key: 'current-key',
+            key: 'current-key-at-least-32-bytes-long-secret-key',
             algorithm: 'HS256',
             primary: true,
             kid: 'key-2024-01',
@@ -394,9 +526,13 @@ describe('JWTKeyRotationManager', () => {
     test('should remove expired keys', () => {
       const config: JWTKeyConfig = {
         secrets: [
-          { key: 'current-key', algorithm: 'HS256', primary: true },
           {
-            key: 'expired-key',
+            key: 'current-key-at-least-32-bytes-long-secret-key',
+            algorithm: 'HS256',
+            primary: true,
+          },
+          {
+            key: 'expired-key-at-least-32-bytes-long-secret-key',
             algorithm: 'HS256',
             expiresAt: Date.now() - 1000,
           },
@@ -409,15 +545,21 @@ describe('JWTKeyRotationManager', () => {
       manager.cleanupExpiredKeys()
 
       expect(config.secrets.length).toBe(1)
-      expect(config.secrets[0]?.key).toBe('current-key')
+      expect(config.secrets[0]?.key).toBe(
+        'current-key-at-least-32-bytes-long-secret-key',
+      )
     })
 
     test('should keep non-expired keys', () => {
       const config: JWTKeyConfig = {
         secrets: [
-          { key: 'current-key', algorithm: 'HS256', primary: true },
           {
-            key: 'future-key',
+            key: 'current-key-at-least-32-bytes-long-secret-key',
+            algorithm: 'HS256',
+            primary: true,
+          },
+          {
+            key: 'future-key-at-least-32-bytes-long-secret-key',
             algorithm: 'HS256',
             expiresAt: Date.now() + 86400000,
           },
@@ -438,15 +580,19 @@ describe('JWTKeyRotationManager', () => {
 
       const config: JWTKeyConfig = {
         secrets: [
-          { key: 'current-key', algorithm: 'HS256', primary: true },
           {
-            key: 'expired-key-1',
+            key: 'current-key-at-least-32-bytes-long-secret-key',
+            algorithm: 'HS256',
+            primary: true,
+          },
+          {
+            key: 'expired-key-1-at-least-32-bytes-long-secret',
             algorithm: 'HS256',
             expiresAt: Date.now() - 1000,
             kid: 'exp-1',
           },
           {
-            key: 'expired-key-2',
+            key: 'expired-key-2-at-least-32-bytes-long-secret',
             algorithm: 'HS256',
             expiresAt: Date.now() - 2000,
             kid: 'exp-2',
@@ -468,7 +614,13 @@ describe('JWTKeyRotationManager', () => {
     test('should support seamless key rotation', async () => {
       // Start with old key
       const config: JWTKeyConfig = {
-        secrets: [{ key: 'old-key', algorithm: 'HS256', primary: true }],
+        secrets: [
+          {
+            key: 'old-key-at-least-32-bytes-long-secret-key!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+        ],
         gracePeriod: 86400000,
       }
       manager = new JWTKeyRotationManager(config)
@@ -477,7 +629,11 @@ describe('JWTKeyRotationManager', () => {
       const oldToken = await manager.signToken({ userId: '123' })
 
       // Add new key and rotate
-      config.secrets.push({ key: 'new-key', algorithm: 'HS256', primary: true })
+      config.secrets.push({
+        key: 'new-key-at-least-32-bytes-long-secret-key!',
+        algorithm: 'HS256',
+        primary: true,
+      })
       manager.rotateKeys()
 
       // Old token should still verify
@@ -494,7 +650,13 @@ describe('JWTKeyRotationManager', () => {
 
     test('should handle multiple rotation cycles', async () => {
       const config: JWTKeyConfig = {
-        secrets: [{ key: 'key-v1', algorithm: 'HS256', primary: true }],
+        secrets: [
+          {
+            key: 'key-v1-at-least-32-bytes-long-secret-key!!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+        ],
         gracePeriod: 86400000,
       }
       manager = new JWTKeyRotationManager(config)
@@ -502,12 +664,20 @@ describe('JWTKeyRotationManager', () => {
       const token1 = await manager.signToken({ version: 1 })
 
       // First rotation
-      config.secrets.push({ key: 'key-v2', algorithm: 'HS256', primary: true })
+      config.secrets.push({
+        key: 'key-v2-at-least-32-bytes-long-secret-key!!',
+        algorithm: 'HS256',
+        primary: true,
+      })
       manager.rotateKeys()
       const token2 = await manager.signToken({ version: 2 })
 
       // Second rotation
-      config.secrets.push({ key: 'key-v3', algorithm: 'HS256', primary: true })
+      config.secrets.push({
+        key: 'key-v3-at-least-32-bytes-long-secret-key!!',
+        algorithm: 'HS256',
+        primary: true,
+      })
       manager.rotateKeys()
       const token3 = await manager.signToken({ version: 3 })
 
@@ -526,7 +696,13 @@ describe('JWTKeyRotationManager', () => {
   describe('destroy', () => {
     test('should stop JWKS refresh timer', () => {
       const config: JWTKeyConfig = {
-        secrets: [{ key: 'test-key', algorithm: 'HS256', primary: true }],
+        secrets: [
+          {
+            key: 'test-key-at-least-32-bytes-long-secret-key!!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+        ],
         jwksUri: 'https://example.com/.well-known/jwks.json',
         jwksRefreshInterval: 3600000,
       }
@@ -537,7 +713,13 @@ describe('JWTKeyRotationManager', () => {
 
     test('should be safe to call multiple times', () => {
       const config: JWTKeyConfig = {
-        secrets: [{ key: 'test-key', algorithm: 'HS256', primary: true }],
+        secrets: [
+          {
+            key: 'test-key-at-least-32-bytes-long-secret-key!!',
+            algorithm: 'HS256',
+            primary: true,
+          },
+        ],
       }
       manager = new JWTKeyRotationManager(config)
 
@@ -556,7 +738,7 @@ describe('JWTKeyRotationManager', () => {
       const config: JWTKeyConfig = {
         secrets: [
           {
-            key: 'test-secret',
+            key: 'test-secret-at-least-32-bytes-long-secret-key',
             algorithm: 'HS256',
             primary: true,
           },
@@ -596,7 +778,7 @@ describe('JWTKeyRotationManager', () => {
       const config: JWTKeyConfig = {
         secrets: [
           {
-            key: 'test-secret',
+            key: 'test-secret-at-least-32-bytes-long-secret-key',
             algorithm: 'HS256',
             primary: true,
           },
@@ -618,7 +800,7 @@ describe('JWTKeyRotationManager', () => {
       const config: JWTKeyConfig = {
         secrets: [
           {
-            key: 'test-secret',
+            key: 'test-secret-at-least-32-bytes-long-secret-key',
             algorithm: 'HS256',
             primary: true,
           },
@@ -637,9 +819,7 @@ describe('JWTKeyRotationManager', () => {
       await expect((manager as any).refreshJWKS()).rejects.toThrow()
 
       // Verify error log was written
-      const errorLog = logs.find(
-        (l) => l.message === 'Failed to refresh JWKS',
-      )
+      const errorLog = logs.find((l) => l.message === 'Failed to refresh JWKS')
       expect(errorLog).toBeDefined()
       expect(errorLog.meta.uri).toBe('not-a-valid-url')
       expect(errorLog.meta.error).toBeDefined()
@@ -651,7 +831,7 @@ describe('JWTKeyRotationManager', () => {
       const config: JWTKeyConfig = {
         secrets: [
           {
-            key: 'test-secret',
+            key: 'test-secret-at-least-32-bytes-long-secret-key',
             algorithm: 'HS256',
             primary: true,
           },
@@ -670,7 +850,7 @@ describe('JWTKeyRotationManager', () => {
       const config: JWTKeyConfig = {
         secrets: [
           {
-            key: 'test-secret',
+            key: 'test-secret-at-least-32-bytes-long-secret-key',
             algorithm: 'HS256',
             primary: true,
           },
@@ -689,7 +869,7 @@ describe('JWTKeyRotationManager', () => {
       const config: JWTKeyConfig = {
         secrets: [
           {
-            key: 'test-secret',
+            key: 'test-secret-at-least-32-bytes-long-secret-key',
             algorithm: 'HS256',
             primary: true,
           },
@@ -711,7 +891,7 @@ describe('JWTKeyRotationManager', () => {
       const config: JWTKeyConfig = {
         secrets: [
           {
-            key: 'test-secret',
+            key: 'test-secret-at-least-32-bytes-long-secret-key',
             algorithm: 'HS256',
             primary: true,
           },
