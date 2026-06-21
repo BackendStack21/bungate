@@ -401,8 +401,8 @@ gateway.addRoute({
       timeout: 5000, // 5 second timeout
       path: '/health', // Health check endpoint
       expectedStatus: 200, // Expected status code
-      unhealthyThreshold: 3, // Failures before marking unhealthy
-      healthyThreshold: 2, // Successes before marking healthy
+      failureThreshold: 3, // Failures before marking unhealthy
+      successThreshold: 2, // Successes before marking healthy
     },
   },
 })
@@ -594,7 +594,7 @@ gateway.addRoute({
       enabled: true,
       interval: 10000,
       path: '/health',
-      unhealthyThreshold: 2, // Fast failover
+      failureThreshold: 2, // Fast failover
     },
   },
 })
@@ -650,12 +650,29 @@ healthCheck: {
   interval: 15000,
   timeout: 5000,
   path: '/health',
-  unhealthyThreshold: 3,
-  healthyThreshold: 2,
+  failureThreshold: 3,
+  successThreshold: 2,
 }
 ```
 
-### 2. Use Circuit Breakers for External Services
+### 2. Restrict Health Check Targets
+
+For security, limit which schemes and hosts the load balancer may probe.
+
+```typescript
+healthCheck: {
+  enabled: true,
+  interval: 15000,
+  timeout: 5000,
+  path: '/health',
+  failureThreshold: 3,
+  successThreshold: 2,
+  allowedSchemes: ['http', 'https'],
+  allowedHosts: ['10.0.0.0/8', 'api.internal.example.com'],
+}
+```
+
+### 3. Use Circuit Breakers for External Services
 
 ```typescript
 circuitBreaker: {
@@ -666,7 +683,7 @@ circuitBreaker: {
 }
 ```
 
-### 3. Configure Timeouts
+### 4. Configure Timeouts
 
 ```typescript
 gateway.addRoute({
@@ -681,7 +698,7 @@ gateway.addRoute({
 })
 ```
 
-### 4. Monitor Target Health
+### 5. Monitor Target Health
 
 ```typescript
 import { PinoLogger } from 'bungate'
@@ -698,7 +715,7 @@ gateway.on('target-healthy', (target) => {
 })
 ```
 
-### 5. Use Appropriate Strategy
+### 6. Use Appropriate Strategy
 
 ```typescript
 // ❌ DON'T use IP hash for APIs behind NAT
@@ -714,7 +731,7 @@ loadBalancer: {
 }
 ```
 
-### 6. Plan for Capacity
+### 7. Plan for Capacity
 
 ```typescript
 // Configure weights based on actual capacity
@@ -728,7 +745,7 @@ loadBalancer: {
 }
 ```
 
-### 7. Test Failover Scenarios
+### 8. Test Failover Scenarios
 
 ```bash
 # Simulate server failure
@@ -781,7 +798,7 @@ targets: [
 healthCheck: {
   enabled: true,
   timeout: 10000, // Increase from 5000
-  unhealthyThreshold: 5, // Require more failures
+  failureThreshold: 5, // Require more failures
 }
 
 // 2. Check health endpoint performance

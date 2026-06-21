@@ -141,6 +141,14 @@ interface ClusterConfig {
   // Exit master process after shutdown (default: true)
   // Set to false for testing or embedded usage
   exitOnShutdown: boolean
+
+  // Allow-list of environment variable names forwarded to workers.
+  // If provided, only these variables (plus internal CLUSTER_* vars) are passed.
+  allowedEnvVars?: string[]
+
+  // Allow-list of worker script paths. The worker script must match one of
+  // these paths to prevent accidental execution of arbitrary files.
+  workerScriptAllowlist?: string[]
 }
 ```
 

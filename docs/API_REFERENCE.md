@@ -115,6 +115,8 @@ interface ClusterConfig {
   respawnThresholdTime?: number // Default: 60000ms
   shutdownTimeout?: number // Default: 30000ms
   exitOnShutdown?: boolean // Default: true
+  allowedEnvVars?: string[] // Allow-list of env vars forwarded to workers
+  workerScriptAllowlist?: string[] // Allow-list of worker script paths
 }
 ```
 
@@ -392,12 +394,17 @@ gateway.addRoute({
 ```typescript
 interface HealthCheckConfig {
   enabled: boolean
-  interval?: number // Default: 30000ms
-  timeout?: number // Default: 5000ms
+  interval?: number // Default: 30000ms, clamped to 1000ms–300000ms
+  timeout?: number // Default: 5000ms, must be less than interval
   path?: string // Default: '/health'
+  method?: 'GET' | 'HEAD' // Default: 'GET'
   expectedStatus?: number // Default: 200
-  unhealthyThreshold?: number // Default: 3
-  healthyThreshold?: number // Default: 2
+  expectedBody?: string // Optional body substring required for healthy status
+  failureThreshold?: number // Default: 3, max 20
+  successThreshold?: number // Default: 2, max 20
+  minHealthyTargets?: number // Default: 1
+  allowedSchemes?: string[] // Default: ['http', 'https']
+  allowedHosts?: string[] // CIDR or exact hosts allowed for health checks
   validator?: (response: Response) => Promise<boolean> | boolean
 }
 ```
