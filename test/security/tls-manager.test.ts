@@ -6,12 +6,15 @@ import {
 } from '../../src/security/tls-manager'
 import type { TLSConfig } from '../../src/security/config'
 import { readFileSync } from 'fs'
+import { generateTestTLSCert } from '../fixtures/tls-certs'
+
+const testCert = generateTestTLSCert()
 
 describe('TLSManager', () => {
   const validConfig: TLSConfig = {
     enabled: true,
-    cert: './examples/cert.pem',
-    key: './examples/key.pem',
+    cert: testCert.certPath,
+    key: testCert.keyPath,
     minVersion: 'TLSv1.2',
   }
 
@@ -153,8 +156,8 @@ describe('TLSManager', () => {
     })
 
     test('should accept certificate as Buffer', async () => {
-      const certBuffer = readFileSync('./examples/cert.pem')
-      const keyBuffer = readFileSync('./examples/key.pem')
+      const certBuffer = readFileSync(testCert.certPath)
+      const keyBuffer = readFileSync(testCert.keyPath)
       const config: TLSConfig = {
         enabled: true,
         cert: certBuffer,
@@ -171,7 +174,7 @@ describe('TLSManager', () => {
       const config: TLSConfig = {
         enabled: true,
         cert: './nonexistent-cert.pem',
-        key: './examples/key.pem',
+        key: testCert.keyPath,
       }
       const manager = new TLSManager(config)
       await expect(manager.loadCertificates()).rejects.toThrow(
@@ -182,7 +185,7 @@ describe('TLSManager', () => {
     test('should throw error for invalid key path', async () => {
       const config: TLSConfig = {
         enabled: true,
-        cert: './examples/cert.pem',
+        cert: testCert.certPath,
         key: './nonexistent-key.pem',
       }
       const manager = new TLSManager(config)
@@ -201,9 +204,9 @@ describe('TLSManager', () => {
     test('should load CA certificate when provided', async () => {
       const config: TLSConfig = {
         enabled: true,
-        cert: './examples/cert.pem',
-        key: './examples/key.pem',
-        ca: './examples/cert.pem', // Using cert as CA for testing
+        cert: testCert.certPath,
+        key: testCert.keyPath,
+        ca: testCert.certPath, // Using cert as CA for testing
       }
       const manager = new TLSManager(config)
       await manager.loadCertificates()

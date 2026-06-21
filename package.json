@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",
+    "node-forge": "^1.4.0",
     "prettier": "^3.6.2"
   },
   "main": "lib/index.js",

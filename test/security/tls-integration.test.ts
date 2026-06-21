@@ -2,6 +2,9 @@ import { describe, test, expect, afterEach } from 'bun:test'
 import { BunGateway } from '../../src/gateway/gateway'
 import { BunGateLogger } from '../../src/logger/pino-logger'
 import type { Server } from 'bun'
+import { generateTestTLSCert } from '../fixtures/tls-certs'
+
+const testCert = generateTestTLSCert()
 
 describe('TLS Integration with Gateway', () => {
   let gateways: BunGateway[] = []
@@ -45,8 +48,8 @@ describe('TLS Integration with Gateway', () => {
       security: {
         tls: {
           enabled: true,
-          cert: './examples/cert.pem',
-          key: './examples/key.pem',
+          cert: testCert.certPath,
+          key: testCert.keyPath,
           minVersion: 'TLSv1.2',
         },
       },
@@ -87,8 +90,8 @@ describe('TLS Integration with Gateway', () => {
       security: {
         tls: {
           enabled: true,
-          cert: './examples/cert.pem',
-          key: './examples/key.pem',
+          cert: testCert.certPath,
+          key: testCert.keyPath,
           redirectHTTP: true,
           redirectPort: httpPort,
         },
@@ -176,8 +179,8 @@ describe('TLS Integration with Gateway', () => {
       security: {
         tls: {
           enabled: true,
-          cert: readFileSync('./examples/cert.pem'),
-          key: readFileSync('./examples/key.pem'),
+          cert: readFileSync(testCert.certPath),
+          key: readFileSync(testCert.keyPath),
         },
       },
       routes: [
@@ -202,8 +205,8 @@ describe('TLS Integration with Gateway', () => {
       security: {
         tls: {
           enabled: true,
-          cert: './examples/cert.pem',
-          key: './examples/key.pem',
+          cert: testCert.certPath,
+          key: testCert.keyPath,
           minVersion: 'TLSv1.3',
         },
       },
