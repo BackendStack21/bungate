@@ -147,5 +147,7 @@ results/
 
 sec-findings.md
 sec-findings.md*.pem
+VERIFICATION.md
+verification-certificate.json
 *.key
 examples/cert.*
