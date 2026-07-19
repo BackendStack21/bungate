@@ -46,6 +46,40 @@ export type {
 import type { ZeroRequest } from './middleware'
 
 /**
+ * Gateway proxy options extending fetch-gate with redirect security controls.
+ */
+export interface GatewayProxyOptions extends ProxyOptions {
+  /**
+   * Allowed redirect target hostnames when followRedirects is enabled.
+   * Supports leading wildcards, e.g. '*.example.com'.
+   * If empty and redirectSameOrigin is not false, only same-origin redirects
+   * (same scheme+host+port as the original upstream target) are allowed.
+   */
+  redirectAllowlist?: string[]
+
+  /**
+   * When true and no redirectAllowlist is provided, allow redirects only to
+   * the same origin as the original upstream target.
+   * @default true
+   */
+  redirectSameOrigin?: boolean
+
+  /**
+   * Rewrite incoming paths before forwarding to the upstream target.
+   * Keys are regex patterns; values are replacements. May also be a function
+   * that receives the original path (including query string) and returns the
+   * rewritten path.
+   */
+  pathRewrite?: Record<string, string> | ((path: string) => string)
+
+  /**
+   * Per-request fetch `RequestInit` options (e.g. `redirect`).
+   * Used internally to force `redirect: 'manual'` for SSRF protection.
+   */
+  request?: RequestInit
+}
+
+/**
  * Gateway-specific proxy handler interface
  * Extends fetch-gate functionality with enhanced ZeroRequest support
  * and gateway-specific features for request forwarding

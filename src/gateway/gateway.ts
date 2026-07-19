@@ -43,22 +43,23 @@ import type {
   ZeroRequest,
   IRouter,
   IRouterConfig,
+  StepFunction,
 } from '../interfaces/middleware'
 
 // Import 0http-bun middlewares
 import {
   createLogger,
-  createJWTAuth,
   createCORS,
   createBodyParser,
   createPrometheusMiddleware,
-  type JWTAuthOptions,
   type CORSOptions,
   type PrometheusMiddlewareOptions,
   createRateLimit,
 } from '0http-bun/lib/middleware'
 
 // Import our custom implementations
+import { createJWTAuth, matchesExcludedPath } from '../security'
+import type { JWTAuthOptions } from '../interfaces/middleware'
 import { createGatewayProxy } from '../proxy/gateway-proxy'
 import { HttpLoadBalancer } from '../load-balancer/http-load-balancer'
 import type { ProxyInstance } from '../interfaces/proxy'
@@ -152,38 +153,6 @@ export class BunGateway implements Gateway {
       )
     }
 
-    // Create 0http-bun router with configuration
-    // Build a proper global error handler from user config (or use secure defaults)
-    const errorHandlerFn =
-      typeof config.errorHandler === 'function'
-        ? // User provided a custom error handler function — use it directly
-          config.errorHandler
-        : // Default: log the error, return safe 500 without leaking internals
-          (err: Error, req?: any) => {
-            const includeStack =
-              this.config.security?.errorHandling?.includeStackTrace === true ||
-              this.config.server?.development === true
-
-            this.config.logger?.error(
-              {
-                error: err.message,
-                ...(includeStack && err.stack ? { stack: err.stack } : {}),
-                url: req?.url,
-                method: req?.method,
-                clientIP: req ? this.getClientIP(req) : undefined,
-              },
-              'Unhandled gateway error',
-            )
-
-            return new Response(
-              JSON.stringify({ error: 'Internal server error' }),
-              {
-                status: 500,
-                headers: { 'content-type': 'application/json' },
-              },
-            )
-          }
-
     const routerConfig: IRouterConfig = {
       // Map gateway config to router config
       defaultRoute: config.defaultRoute
@@ -194,33 +163,66 @@ export class BunGateway implements Gateway {
               status: 404,
               headers: { 'content-type': 'application/json' },
             }),
-      errorHandler: errorHandlerFn,
+      errorHandler: this.handleError,
       port: config.server?.port,
     }
 
     const { router } = http(routerConfig)
     this.router = router
 
-    // Create logger middleware if configured
+    // Create logger middleware if configured.
+    // Wrap the response serializer so that session cookies are never written
+    // to the request log in plaintext (V-7).
+    const userSerializers = config.logger?.getSerializers?.()
+    const safeSerializers: Record<string, any> = { ...userSerializers }
+    const originalResSerializer = safeSerializers.res
+    safeSerializers.res = (response: Response) => {
+      const serialized = originalResSerializer
+        ? originalResSerializer(response)
+        : {
+            statusCode: response.status,
+            headers: Object.fromEntries(response.headers.entries()),
+          }
+      if (serialized.headers) {
+        const headers = { ...serialized.headers }
+        delete headers['set-cookie']
+        delete headers['cookie']
+        serialized.headers = headers
+      }
+      return serialized
+    }
+
     this.router.use(
       createLogger({
         // @ts-ignore
         logger: config.logger?.pino,
-        serializers: config.logger?.getSerializers(),
+        serializers: safeSerializers,
       }),
     )
 
-    // Add global rate limiting middleware if configured at the gateway level
+    // Add global rate limiting middleware if configured at the gateway level.
+    // excludePaths use boundary-aware matching so '/api/public' does not
+    // accidentally exempt '/api/publicity/admin' (V-6).
     if (this.config.rateLimit) {
+      const { excludePaths, ...rateLimitRest } = this.config.rateLimit
       const globalRateLimitKeyGenerator = (req: ZeroRequest) =>
         this.getClientIP(req)
-      this.router.use(
-        createRateLimit({
-          ...this.config.rateLimit,
-          keyGenerator:
-            this.config.rateLimit.keyGenerator || globalRateLimitKeyGenerator,
-        }),
-      )
+      const rateLimitMiddleware = createRateLimit({
+        ...rateLimitRest,
+        keyGenerator: rateLimitRest.keyGenerator || globalRateLimitKeyGenerator,
+      })
+
+      if (excludePaths && excludePaths.length > 0) {
+        this.router.use(async (req: ZeroRequest, next: StepFunction) => {
+          const url = new URL(req.url)
+          if (matchesExcludedPath(url.pathname, excludePaths)) {
+            return next()
+          }
+          return rateLimitMiddleware(req, next)
+        })
+      } else {
+        this.router.use(rateLimitMiddleware)
+      }
     }
 
     // Add size limiter middleware with secure defaults (always enabled)
@@ -258,7 +260,7 @@ export class BunGateway implements Gateway {
       const securityHeaders = new SecurityHeadersMiddleware(headersConfig)
 
       // Wrap the response to apply security headers
-      this.router.use(async (req: ZeroRequest, next) => {
+      this.router.use(async (req: ZeroRequest, next: StepFunction) => {
         const response = await next()
         const url = new URL(req.url)
         const isHttps =
@@ -304,9 +306,51 @@ export class BunGateway implements Gateway {
     }
   }
 
-  fetch = (req: Request) => {
-    // 0http-bun expects a Request, returns a Response
-    return this.router.fetch(req)
+  fetch = async (req: Request): Promise<Response> => {
+    // 0http-bun expects a Request, returns a Response.
+    // Await the router result so async throws are caught by our sanitized
+    // error handler instead of leaking Bun's debug page (V-9).
+    try {
+      return await this.router.fetch(req)
+    } catch (err) {
+      return await this.handleError(err as Error, req as ZeroRequest)
+    }
+  }
+
+  /**
+   * Secure global error handler.
+   * Logs full details internally and returns a sanitized 500 to the client.
+   */
+  private handleError = async (
+    err: Error,
+    req?: ZeroRequest,
+  ): Promise<Response> => {
+    if (typeof this.config.errorHandler === 'function') {
+      const result = await (this.config.errorHandler as any)(err, req)
+      if (result instanceof Response) {
+        return result
+      }
+    }
+
+    const includeStack =
+      this.config.security?.errorHandling?.includeStackTrace === true ||
+      this.config.server?.development === true
+
+    this.config.logger?.error(
+      {
+        error: err.message,
+        ...(includeStack && err.stack ? { stack: err.stack } : {}),
+        url: req?.url,
+        method: req?.method,
+        clientIP: req ? this.getClientIP(req) : undefined,
+      },
+      'Unhandled gateway error',
+    )
+
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'content-type': 'application/json' },
+    })
   }
 
   use(...args: any[]): this {
@@ -378,8 +422,9 @@ export class BunGateway implements Gateway {
 
       // Add authentication middleware if configured (before custom middleware)
       if (route.auth) {
-        // Pass through all authentication options to support both JWT and API key auth
-        // When jwtOptions is provided, merge root-level and nested options
+        // Pass through all authentication options to support both JWT and API key auth.
+        // The internal createJWTAuth derives allowed algorithms from the key type,
+        // requires an `exp` claim, and supports audience/issuer validation.
         const { jwtOptions: routeJwtOptions, ...authRest } = route.auth
 
         const jwtOptions = routeJwtOptions
@@ -393,12 +438,6 @@ export class BunGateway implements Gateway {
               ...authRest,
             }
 
-        // Convert string secret to Uint8Array for HMAC algorithms (jose library requirement)
-        // RSA/ECDSA keys should be passed as CryptoKey or KeyLike objects
-        if (jwtOptions.secret && typeof jwtOptions.secret === 'string') {
-          jwtOptions.secret = new TextEncoder().encode(jwtOptions.secret)
-        }
-
         middlewares.push(createJWTAuth(jwtOptions as JWTAuthOptions))
       }
 
@@ -410,12 +449,25 @@ export class BunGateway implements Gateway {
         const rateLimitKeyGenerator = (req: ZeroRequest) => {
           return this.getClientIP(req)
         }
-        middlewares.push(
-          createRateLimit({
-            ...route.rateLimit,
-            keyGenerator: route.rateLimit.keyGenerator || rateLimitKeyGenerator,
-          }),
-        )
+        const { excludePaths: routeExcludePaths, ...routeRateLimitRest } =
+          route.rateLimit
+        const routeRateLimitMiddleware = createRateLimit({
+          ...routeRateLimitRest,
+          keyGenerator:
+            routeRateLimitRest.keyGenerator || rateLimitKeyGenerator,
+        })
+
+        if (routeExcludePaths && routeExcludePaths.length > 0) {
+          middlewares.push(async (req: ZeroRequest, next: StepFunction) => {
+            const url = new URL(req.url)
+            if (matchesExcludedPath(url.pathname, routeExcludePaths)) {
+              return next()
+            }
+            return routeRateLimitMiddleware(req, next)
+          })
+        } else {
+          middlewares.push(routeRateLimitMiddleware)
+        }
       }
 
       // Add route-specific middlewares after security middleware
@@ -512,6 +564,7 @@ export class BunGateway implements Gateway {
             // Measure end-to-end time to update latency metrics in the load balancer
             const startedAt = Date.now()
             loadBalancer.incrementConnections(target.url)
+            let connectionsDecremented = false
             response = await proxy.proxy(proxyReq as ZeroRequest, upstreamUrl, {
               afterCircuitBreakerExecution:
                 route.hooks?.afterCircuitBreakerExecution,
@@ -522,14 +575,27 @@ export class BunGateway implements Gateway {
                 res: Response,
                 body?: ReadableStream | null,
               ) => {
+                if (connectionsDecremented) return
+                connectionsDecremented = true
                 loadBalancer.decrementConnections(target.url)
                 // Update latency stats for strategies like 'latency' and as tie-breakers
                 try {
                   const duration = Date.now() - startedAt
-                  loadBalancer.recordResponse(target.url, duration, false)
+                  loadBalancer.recordResponse(
+                    target.url,
+                    duration,
+                    res.status >= 500,
+                  )
                 } catch {}
               },
               onError: (req: Request, error: Error) => {
+                if (connectionsDecremented) {
+                  if (route.hooks?.onError) {
+                    route.hooks.onError!(req, error)
+                  }
+                  return
+                }
+                connectionsDecremented = true
                 loadBalancer.decrementConnections(target.url)
                 // Record error with latency to penalize target appropriately
                 try {
@@ -577,13 +643,14 @@ export class BunGateway implements Gateway {
               }
             }
 
+            const upstreamUrl = route.target + targetPath
             const proxyReq = this.sanitizeProxyRequest(
               req,
-              targetPath,
+              upstreamUrl,
               route.proxy,
             )
 
-            response = await proxy.proxy(proxyReq as ZeroRequest, targetPath, {
+            response = await proxy.proxy(proxyReq as ZeroRequest, upstreamUrl, {
               afterCircuitBreakerExecution:
                 route.hooks?.afterCircuitBreakerExecution,
               beforeCircuitBreakerExecution:
@@ -808,7 +875,7 @@ export class BunGateway implements Gateway {
   }
 
   async listen(port?: number): Promise<Server> {
-    const listenPort = port || this.config.server?.port || 3000
+    const listenPort = port ?? this.config.server?.port ?? 3000
 
     // If cluster mode is enabled and we're the master, start the cluster
     if (this.clusterManager && this.isClusterMaster) {
@@ -863,9 +930,14 @@ export class BunGateway implements Gateway {
     if (this.tlsManager?.isRedirectEnabled()) {
       const redirectPort = this.tlsManager.getRedirectPort()
       if (redirectPort) {
+        const tlsConfig = this.config.security?.tls
         this.httpRedirectManager = new HTTPRedirectManager({
           port: redirectPort,
           httpsPort: listenPort,
+          hostname: tlsConfig?.redirectAllowedHosts
+            ? undefined
+            : this.config.server?.hostname,
+          allowHosts: tlsConfig?.redirectAllowedHosts,
           logger: this.config.logger,
         })
         this.httpRedirectManager.start()

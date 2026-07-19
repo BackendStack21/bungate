@@ -79,6 +79,14 @@ export class BunGateLogger implements Logger {
           'headers["X-Api-Key"]',
           'headers.authorization',
           'headers.Authorization',
+          'headers.cookie',
+          'headers["set-cookie"]',
+          'request.headers.authorization',
+          'request.headers.cookie',
+          'request.headers["set-cookie"]',
+          'response.headers.authorization',
+          'response.headers.cookie',
+          'response.headers["set-cookie"]',
           // JWT tokens
           'token',
           'accessToken',
@@ -169,6 +177,7 @@ export class BunGateLogger implements Logger {
       'ccv',
       'ssn',
       'social_security',
+      'cookie',
     ]
 
     for (const key in sanitized) {

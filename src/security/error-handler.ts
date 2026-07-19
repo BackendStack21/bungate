@@ -12,6 +12,7 @@ import {
   generateRequestId,
   redactSensitiveData,
 } from './utils'
+import { defaultLogger } from '../logger/pino-logger'
 
 /**
  * Default error messages for common HTTP status codes
@@ -51,6 +52,7 @@ export class SecureErrorHandler {
       logErrors: config?.logErrors ?? true,
       customMessages: config?.customMessages ?? {},
       sanitizeBackendErrors: config?.sanitizeBackendErrors ?? true,
+      logger: config?.logger ?? defaultLogger,
     }
 
     // In production, never include stack traces
@@ -152,20 +154,30 @@ export class SecureErrorHandler {
         method: context.method,
         url: context.url,
         clientIP: context.clientIP,
-        headers: this.config.production
-          ? redactSensitiveData(context.headers || {})
-          : context.headers,
+        headers: redactSensitiveData(context.headers || {}),
       },
     }
 
-    // Use console for now - can be replaced with proper logger
+    // Route through the configured logger so redaction and transport settings
+    // are respected (V-23). Fallback to console only if the logger rejects.
     const logLevel = logEntry.level
-    if (logLevel === 'critical' || logLevel === 'error') {
-      console.error('[SecureErrorHandler]', JSON.stringify(logEntry, null, 2))
-    } else if (logLevel === 'warn') {
-      console.warn('[SecureErrorHandler]', JSON.stringify(logEntry, null, 2))
-    } else {
-      console.log('[SecureErrorHandler]', JSON.stringify(logEntry, null, 2))
+    const logger = this.config.logger ?? defaultLogger
+    try {
+      if (logLevel === 'critical' || logLevel === 'error') {
+        logger.error(logEntry, 'SecureErrorHandler error')
+      } else if (logLevel === 'warn') {
+        logger.warn(logEntry, 'SecureErrorHandler warning')
+      } else {
+        logger.info(logEntry, 'SecureErrorHandler info')
+      }
+    } catch {
+      if (logLevel === 'critical' || logLevel === 'error') {
+        console.error('[SecureErrorHandler]', JSON.stringify(logEntry, null, 2))
+      } else if (logLevel === 'warn') {
+        console.warn('[SecureErrorHandler]', JSON.stringify(logEntry, null, 2))
+      } else {
+        console.log('[SecureErrorHandler]', JSON.stringify(logEntry, null, 2))
+      }
     }
   }
 

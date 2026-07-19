@@ -71,8 +71,16 @@ export class JWTKeyRotationManager {
    * Validates the JWT key configuration
    */
   private validateConfig(): void {
+    const hasJwks = !!this.config.jwksUri
+
     if (!this.config.secrets || this.config.secrets.length === 0) {
-      throw new Error('At least one JWT secret must be configured')
+      if (!hasJwks) {
+        throw new Error(
+          'At least one JWT secret or a jwksUri must be configured',
+        )
+      }
+      // JWKS-only configuration is valid for verification.
+      return
     }
 
     const primaryKeys = this.config.secrets.filter((s) => s.primary)

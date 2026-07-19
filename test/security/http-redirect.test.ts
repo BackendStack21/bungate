@@ -2,6 +2,7 @@ import { describe, test, expect, afterEach } from 'bun:test'
 import {
   createHTTPRedirectServer,
   HTTPRedirectManager,
+  matchesAllowedHost,
 } from '../../src/security/http-redirect'
 import { BunGateLogger } from '../../src/logger/pino-logger'
 import type { Server } from 'bun'
@@ -9,8 +10,8 @@ import type { Server } from 'bun'
 describe('HTTP Redirect', () => {
   let servers: Server[] = []
 
-  afterEach(() => {
-    servers.forEach((server) => server.stop())
+  afterEach(async () => {
+    await Promise.all(servers.map((server) => server.stop()))
     servers = []
   })
 
@@ -38,6 +39,7 @@ describe('HTTP Redirect', () => {
       const server = createHTTPRedirectServer({
         port: httpPort,
         httpsPort,
+        hostname: 'localhost',
       })
       servers.push(server)
 
@@ -52,6 +54,7 @@ describe('HTTP Redirect', () => {
       const server = createHTTPRedirectServer({
         port: httpPort,
         httpsPort,
+        hostname: 'localhost',
       })
       servers.push(server)
 
@@ -78,6 +81,7 @@ describe('HTTP Redirect', () => {
       const server = createHTTPRedirectServer({
         port: httpPort,
         httpsPort,
+        hostname: 'localhost',
       })
       servers.push(server)
 
@@ -103,6 +107,7 @@ describe('HTTP Redirect', () => {
       const server = createHTTPRedirectServer({
         port: httpPort,
         httpsPort,
+        hostname: 'localhost',
       })
       servers.push(server)
 
@@ -125,6 +130,7 @@ describe('HTTP Redirect', () => {
       const server = createHTTPRedirectServer({
         port: httpPort,
         httpsPort,
+        hostname: 'localhost',
       })
       servers.push(server)
 
@@ -145,7 +151,8 @@ describe('HTTP Redirect', () => {
       const server = createHTTPRedirectServer({
         port: httpPort,
         httpsPort,
-        // No custom hostname - should use request hostname
+        // No custom hostname - rely on an explicit allowlist for the request host.
+        allowHosts: ['localhost'],
       })
       servers.push(server)
 
@@ -171,6 +178,7 @@ describe('HTTP Redirect', () => {
       const server = createHTTPRedirectServer({
         port: httpPort,
         httpsPort,
+        hostname: 'localhost',
         logger,
       })
       servers.push(server)
@@ -235,6 +243,42 @@ describe('HTTP Redirect', () => {
       })
 
       expect(() => manager.stop()).not.toThrow()
+    })
+  })
+
+  describe('matchesAllowedHost', () => {
+    test('matches exact hostnames case-insensitively', () => {
+      expect(matchesAllowedHost('Example.COM', 'example.com')).toBe(true)
+      expect(matchesAllowedHost('example.com', 'other.com')).toBe(false)
+    })
+
+    test('matches wildcard patterns', () => {
+      expect(matchesAllowedHost('api.example.com', '*.example.com')).toBe(true)
+      expect(matchesAllowedHost('example.com', '*.example.com')).toBe(true)
+      expect(matchesAllowedHost('api.other.com', '*.example.com')).toBe(false)
+    })
+  })
+
+  describe('wildcard allowHosts', () => {
+    test('should redirect when request host matches wildcard allowlist', async () => {
+      const httpPort = await getAvailablePort()
+      const httpsPort = 8443
+
+      const server = createHTTPRedirectServer({
+        port: httpPort,
+        httpsPort,
+        // localhost:port will not match *.example.com, so also allow localhost exactly.
+        allowHosts: ['*.example.com', 'localhost'],
+      })
+      servers.push(server)
+
+      await new Promise((resolve) => setTimeout(resolve, 100))
+
+      const response = await fetch(`http://localhost:${httpPort}/test`, {
+        redirect: 'manual',
+      })
+
+      expect(response.status).toBe(301)
     })
   })
 })

@@ -50,7 +50,7 @@ describe('BunGateway Advanced Routing', () => {
         })
       },
       auth: {
-        secret: 'test-secret',
+        secret: 'test-secret-at-least-32-bytes-long-for-hs256!',
         optional: true, // Make it optional for testing
       },
     }

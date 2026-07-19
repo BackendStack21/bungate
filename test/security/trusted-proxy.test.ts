@@ -332,6 +332,7 @@ describe('TrustedProxyValidator', () => {
       const config: TrustedProxyConfig = {
         enabled: true,
         trustedIPs: ['192.168.1.1'],
+        trustXRealIP: true,
       }
       const validator = new TrustedProxyValidator(config)
 
@@ -351,6 +352,7 @@ describe('TrustedProxyValidator', () => {
       const config: TrustedProxyConfig = {
         enabled: true,
         trustedNetworks: ['cloudflare'],
+        trustCloudflare: true,
       }
       const validator = new TrustedProxyValidator(config)
 
@@ -370,6 +372,7 @@ describe('TrustedProxyValidator', () => {
       const config: TrustedProxyConfig = {
         enabled: true,
         trustedIPs: ['192.168.1.1'],
+        trustXRealIP: true,
       }
       const validator = new TrustedProxyValidator(config)
 

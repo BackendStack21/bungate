@@ -121,17 +121,29 @@ export function createValidationMiddleware(
       // Handle unexpected errors during validation
       defaultLogger.error('Validation middleware error', error as Error)
 
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'An error occurred during request validation'
+
+      const isClientEncodingError =
+        message.includes('Non-canonical percent encoding') ||
+        message.includes('incompletely decoded percent encoding')
+
       return new Response(
         JSON.stringify({
           error: {
             code: 'VALIDATION_ERROR',
-            message: 'An error occurred during request validation',
+            message: isClientEncodingError
+              ? 'Invalid request encoding'
+              : 'An error occurred during request validation',
             requestId,
             timestamp: Date.now(),
+            ...(isClientEncodingError ? { details: [message] } : {}),
           },
         }),
         {
-          status: 500,
+          status: isClientEncodingError ? 400 : 500,
           headers: {
             'Content-Type': 'application/json',
             'X-Request-ID': requestId,

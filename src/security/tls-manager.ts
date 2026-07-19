@@ -10,7 +10,19 @@ import type { TLSConfig } from './config'
 import type { ValidationResult } from './types'
 
 /**
- * Bun TLS options interface
+ * OpenSSL SSL_OP_* bitmasks used for Bun's `secureOptions` TLS setting.
+ */
+const SSL_OP_NO_SSLv2 = 0x01000000
+const SSL_OP_NO_SSLv3 = 0x02000000
+const SSL_OP_NO_TLSv1 = 0x04000000
+const SSL_OP_NO_TLSv1_1 = 0x08000000
+const SSL_OP_NO_TLSv1_2 = 0x10000000
+
+/**
+ * Bun TLS options interface.
+ *
+ * Note: Bun does not expose `minVersion` or `cipherSuites` keys. They are
+ * mapped here to `secureOptions` and `ciphers` respectively.
  */
 export interface BunTLSOptions {
   cert?: string | Buffer
@@ -18,8 +30,8 @@ export interface BunTLSOptions {
   ca?: string | Buffer
   passphrase?: string
   dhParamsFile?: string
-  minVersion?: 'TLSv1.2' | 'TLSv1.3'
-  cipherSuites?: string[]
+  secureOptions?: number
+  ciphers?: string
   requestCert?: boolean
   rejectUnauthorized?: boolean
 }
@@ -181,12 +193,19 @@ export class TLSManager {
 
     const options: BunTLSOptions = { ...this.tlsOptions }
 
+    // Map the high-level minVersion option to Bun's secureOptions bitmask (V-10).
     if (this.config.minVersion) {
-      options.minVersion = this.config.minVersion
+      let secureOptions =
+        SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1
+      if (this.config.minVersion === 'TLSv1.3') {
+        secureOptions |= SSL_OP_NO_TLSv1_2
+      }
+      options.secureOptions = secureOptions
     }
 
+    // Map cipher suites to Bun's `ciphers` OpenSSL string (V-10).
     if (this.config.cipherSuites && this.config.cipherSuites.length > 0) {
-      options.cipherSuites = this.config.cipherSuites
+      options.ciphers = this.config.cipherSuites.join(':')
     }
 
     if (this.config.requestCert != null) {

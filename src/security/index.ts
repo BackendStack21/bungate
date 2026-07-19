@@ -49,6 +49,7 @@ export {
   sanitizeHeader,
   containsOnlyAllowedChars,
   matchesBlockedPattern,
+  matchesExcludedPath,
   sanitizeErrorMessage,
   generateRequestId,
   isValidIP,
@@ -147,3 +148,6 @@ export {
   createTokenVerifier,
   type JWTKeyRotationMiddlewareOptions,
 } from './jwt-key-rotation-middleware'
+
+// Export hardened JWT auth middleware
+export { createJWTAuth } from './jwt-auth'

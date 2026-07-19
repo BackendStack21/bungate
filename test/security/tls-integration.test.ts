@@ -85,7 +85,7 @@ describe('TLS Integration with Gateway', () => {
     const httpPort = await getAvailablePort(httpsPort + 1)
 
     const gateway = new BunGateway({
-      server: { port: httpsPort },
+      server: { port: httpsPort, hostname: 'localhost' },
       logger,
       security: {
         tls: {

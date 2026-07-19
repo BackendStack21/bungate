@@ -10,36 +10,50 @@
  * - Connection pooling and keep-alive for performance
  * - Request/response transformation capabilities
  * - Comprehensive error handling and retry logic
- * - Real-time health monitoring and metrics
+ * - Real-time health monitoring and metrics collection
  * - Support for ZeroRequest enhanced context
- *
- * @example
- * ```ts
- * const proxy = createGatewayProxy({
- *   timeout: 5000,
- *   circuitBreaker: {
- *     errorThreshold: 50,
- *     resetTimeout: 30000
- *   },
- *   hooks: {
- *     beforeRequest: (req) => {
- *       req.headers.set('X-Gateway', 'bungate')
- *     }
- *   }
- * })
- *
- * const response = await proxy.proxy(request, 'http://backend-service:3000')
- * ```
+ * - Secure redirect handling (manual by default, opt-in with allowlist/same-origin)
  */
 
 import type { ProxyHandler, ProxyInstance } from '../interfaces/proxy'
-import type {
-  ProxyOptions,
-  ProxyRequestOptions,
-  CircuitState,
-} from 'fetch-gate'
+import type { ProxyRequestOptions, CircuitState } from 'fetch-gate'
+import type { GatewayProxyOptions } from '../interfaces/proxy'
 import { FetchProxy } from 'fetch-gate/lib/proxy'
 import type { ZeroRequest } from '../interfaces/middleware'
+
+export function resolveTargetUrl(source?: string, base?: string): URL {
+  const target = source || ''
+  if (target.includes('://')) return new URL(target)
+  const baseUrl = base || ''
+  if (baseUrl.includes('://')) return new URL(target, baseUrl)
+  // Fallback used only for malformed configurations.
+  return new URL(target || '/', 'http://localhost')
+}
+
+export function matchesHostname(hostname: string, pattern: string): boolean {
+  if (pattern.startsWith('*.')) {
+    const suffix = pattern.slice(2).toLowerCase()
+    const h = hostname.toLowerCase()
+    return h === suffix || h.endsWith('.' + suffix)
+  }
+  return hostname.toLowerCase() === pattern.toLowerCase()
+}
+
+export function isRedirectAllowed(
+  redirectUrl: URL,
+  originalUrl: URL,
+  options: GatewayProxyOptions,
+): boolean {
+  if (options.redirectAllowlist && options.redirectAllowlist.length > 0) {
+    return options.redirectAllowlist.some((allowed) =>
+      matchesHostname(redirectUrl.hostname, allowed),
+    )
+  }
+  if (options.redirectSameOrigin === false) {
+    return false
+  }
+  return redirectUrl.origin === originalUrl.origin
+}
 
 /**
  * Gateway-enhanced proxy handler with ZeroRequest support
@@ -51,13 +65,16 @@ import type { ZeroRequest } from '../interfaces/middleware'
 export class GatewayProxy implements ProxyHandler {
   /** Underlying fetch-gate proxy instance for core functionality */
   private fetchProxy: FetchProxy
+  /** Resolved gateway proxy options */
+  private options: GatewayProxyOptions
 
   /**
    * Initialize the gateway proxy with fetch-gate options
    *
    * @param options - Proxy configuration including timeouts, circuit breaker, and hooks
    */
-  constructor(options: ProxyOptions) {
+  constructor(options: GatewayProxyOptions) {
+    this.options = options
     this.fetchProxy = new FetchProxy(options)
   }
 
@@ -74,8 +91,67 @@ export class GatewayProxy implements ProxyHandler {
     source?: string,
     opts?: ProxyRequestOptions,
   ): Promise<Response> {
-    // Cast ZeroRequest to standard Request for fetch-gate compatibility
-    return this.fetchProxy.proxy(req as Request, source, opts)
+    const mergedOptions: GatewayProxyOptions = { ...this.options, ...opts }
+    const followRedirects = mergedOptions.followRedirects === true
+    const maxRedirects = mergedOptions.maxRedirects ?? 5
+
+    let currentReq = req as Request
+    let originalTargetUrl: URL | undefined
+    let redirectCount = 0
+
+    while (true) {
+      // Always use manual redirect mode so bungate controls SSRF exposure (V-1).
+      const proxyOptions = {
+        ...mergedOptions,
+        request: {
+          ...(mergedOptions.request || {}),
+          redirect: 'manual' as const,
+        },
+      }
+
+      const response = await this.fetchProxy.proxy(
+        currentReq as Request,
+        source,
+        proxyOptions,
+      )
+
+      const isRedirect =
+        response.status >= 300 &&
+        response.status < 400 &&
+        response.headers.has('location')
+
+      if (!isRedirect || !followRedirects || redirectCount >= maxRedirects) {
+        return response
+      }
+
+      // Body-preserving redirects are unsafe to follow automatically because
+      // fetch-gate may have already consumed the stream. Follow GET/HEAD
+      // redirects only; return the 3xx response for other methods.
+      if (currentReq.method !== 'GET' && currentReq.method !== 'HEAD') {
+        return response
+      }
+
+      const location = response.headers.get('location')!
+      const currentUrl = resolveTargetUrl(
+        source,
+        mergedOptions.base || this.options.base,
+      )
+      if (originalTargetUrl === undefined) {
+        originalTargetUrl = currentUrl
+      }
+      const redirectUrl = new URL(location, currentUrl)
+
+      if (!isRedirectAllowed(redirectUrl, originalTargetUrl, mergedOptions)) {
+        return response
+      }
+
+      // Prepare next request. For GET/HEAD we can safely re-issue as GET.
+      currentReq = new Request(redirectUrl.toString(), {
+        method: 'GET',
+        headers: currentReq.headers,
+      })
+      redirectCount++
+    }
   }
 
   /**
@@ -133,7 +209,9 @@ export class GatewayProxy implements ProxyHandler {
  * const response = await proxy.proxy(req, 'http://api.service.com')
  * ```
  */
-export function createGatewayProxy(options: ProxyOptions): ProxyInstance {
+export function createGatewayProxy(
+  options: GatewayProxyOptions,
+): ProxyInstance {
   const handler = new GatewayProxy(options)
   return {
     proxy: handler.proxy.bind(handler),

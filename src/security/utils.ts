@@ -66,14 +66,13 @@ export function generateSecureRandomWithEntropy(entropyBits: number): string {
  */
 const NON_CANONICAL_ENCODING_PATTERNS = [
   // 2-byte overlong forms (U+0000 - U+007F encoded as 2 bytes)
-  /%[cC][01][0-9a-fA-F]%[89aAbB][0-9a-fA-F]/,
+  /%[cC][01]%[89aAbB][0-9a-fA-F]/,
   // 3-byte overlong forms (U+0000 - U+07FF encoded as 3 bytes)
   /%[eE]0%[89aAbB][0-9a-fA-F]%[89aAbB][0-9a-fA-F]/,
   // 4-byte overlong forms (U+0000 - U+FFFF encoded as 4 bytes)
   /%[fF]0%[89aAbB][0-9a-fA-F]%[89aAbB][0-9a-fA-F]%[89aAbB][0-9a-fA-F]/,
-  // Invalid leading bytes (fe/ff) and lone continuation bytes
+  // Invalid leading bytes (fe/ff)
   /%[fF][eEfF]/,
-  /%[89aAbB][0-9a-fA-F](?!%)/,
 ]
 
 /**
@@ -108,6 +107,13 @@ export function recursiveDecodeURIComponent(input: string): string {
     }
     iterations++
   }
+
+  // If percent escapes remain after the decode budget, a downstream that decodes
+  // more aggressively may interpret them differently (e.g. 6+ layers of %25).
+  if (/%[0-9a-fA-F]{2}/.test(decoded)) {
+    throw new Error('Path contains incompletely decoded percent encoding')
+  }
+
   return decoded
 }
 
@@ -177,6 +183,23 @@ export function isValidHeaderName(name: string): boolean {
  */
 export function isValidHeaderValue(value: string): boolean {
   return /^[\t\x20-\x7E\x80-\xFF]*$/.test(value)
+}
+
+/**
+ * Boundary-aware exclude-path matching.
+ *
+ * `/health` must not match `/healthcheck`, and `/api/public` must not match
+ * `/api/publicity/admin`. A trailing slash is normalised before comparison.
+ */
+export function matchesExcludedPath(
+  pathname: string,
+  excludePaths: string[],
+): boolean {
+  return excludePaths.some((excluded) => {
+    const ex = excluded.endsWith('/') ? excluded.slice(0, -1) : excluded
+    if (ex === '') return false
+    return pathname === ex || pathname.startsWith(ex + '/')
+  })
 }
 
 /**
@@ -405,6 +428,7 @@ export function redactSensitiveData(
     'token',
     'key',
     'authorization',
+    'cookie',
   ],
 ): any {
   if (typeof obj !== 'object' || obj === null) {

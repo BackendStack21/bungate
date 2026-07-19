@@ -19,6 +19,12 @@ export interface TLSConfig {
   rejectUnauthorized?: boolean
   redirectHTTP?: boolean
   redirectPort?: number
+  /**
+   * Allowed Host header values for the HTTP->HTTPS redirect server.
+   * Supports exact hostnames and leading wildcards (e.g. '*.example.com').
+   * If not set, the redirect server uses the gateway's configured hostname.
+   */
+  redirectAllowedHosts?: string[]
 }
 
 /**
@@ -30,6 +36,8 @@ export interface ErrorHandlerConfig {
   logErrors?: boolean
   customMessages?: Record<number, string>
   sanitizeBackendErrors?: boolean
+  /** Optional logger to receive error log entries. Defaults to the gateway logger. */
+  logger?: any
 }
 
 /**
@@ -57,6 +65,17 @@ export interface TrustedProxyConfig {
   trustedNetworks?: string[]
   maxForwardedDepth?: number
   trustAll?: boolean
+  /**
+   * Honor the Cloudflare-specific CF-Connecting-IP header.
+   * Only enable when the immediate proxy is a Cloudflare edge.
+   * @default false
+   */
+  trustCloudflare?: boolean
+  /**
+   * Honor the X-Real-IP / X-Client-IP headers from the trusted immediate proxy.
+   * @default false
+   */
+  trustXRealIP?: boolean
 }
 
 /**

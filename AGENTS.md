@@ -64,6 +64,7 @@ src/
 │   ├── validation-middleware.ts # Middleware wrapping InputValidator
 │   ├── error-handler.ts        # SecureErrorHandler (production/development modes)
 │   ├── error-handler-middleware.ts # Middleware with circuit breaker detection
+│   ├── jwt-auth.ts             # Hardened JWT middleware (replaces 0http-bun JWT)
 │   ├── jwt-key-rotation.ts     # JWKS refresh, multi-secret key rotation
 │   ├── jwt-key-rotation-middleware.ts
 │   ├── security-headers.ts     # HSTS, CSP, X-Frame-Options, etc.
@@ -77,6 +78,18 @@ src/
 ```
 
 ## Security Design Principles
+
+### JWT Authentication (jwt-auth.ts)
+
+The gateway uses an internal hardened JWT middleware (not the 0http-bun re-export).
+Key behaviors:
+
+- `exp` is required on all tokens.
+- `audience`/`issuer` are supported as top-level `auth` options.
+- Allowed algorithms are derived from the key type when omitted.
+- PEM-like strings cannot be used as HMAC secrets (algorithm confusion prevention).
+- HS256 secrets must be at least 32 bytes.
+- `excludePaths` matching is boundary-aware.
 
 ### Path Validation (input-validator.ts + utils.ts)
 
@@ -100,9 +113,10 @@ Floor exempts when ALL targets are already unhealthy (genuine outage, not a casc
 
 ### Rate Limiting (gateway.ts)
 
-Uses gateway's `getClientIP()` as the rate limit key generator, NOT `X-Forwarded-For`.
+Uses gateway's `getClientIP()` as the rate limit key generator, NOT raw `X-Forwarded-For`.
 `getClientIP()` consults `TrustedProxyValidator` when enabled, otherwise falls back to
-secure header priority (`cf-connecting-ip` > `x-real-ip`).
+secure header priority (`cf-connecting-ip` > `x-real-ip`). These proxy-specific headers are
+only honored when the corresponding `trustCloudflare` / `trustXRealIP` flags are enabled.
 
 ### Error Handling
 
@@ -159,6 +173,15 @@ Covers: raw `..`, encoded `../`, encoded `/`, encoded `\`, null byte, double-enc
 
 7. **TypeScript strict mode.** Properties like `noUncheckedIndexedAccess` are on. Array accesses
    like `targets[0]` need explicit `!` assertions or length checks.
+
+8. **HTTP→HTTPS redirect requires a hostname or allowlist.** The redirect server now rejects
+   requests when neither `server.hostname` nor `tls.redirectAllowedHosts` is configured.
+
+9. **HS256 JWT secrets must be ≥ 32 bytes.** The hardened JWT middleware rejects short secrets
+   at startup to prevent brute-force forgery.
+
+10. **`listen(0)` picks a random free port.** `listen(port?)` falls back to `config.server.port`
+    and then `3000`; pass `0` to let Bun assign an ephemeral port.
 
 ## CI/CD
 

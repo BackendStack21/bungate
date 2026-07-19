@@ -11,14 +11,12 @@ import type {
   IRouterConfig,
   ParsedFile,
 } from '0http-bun'
-
 // Import all middleware types from 0http-bun for comprehensive middleware support
 import type {
   // Logger middleware for request/response logging
   LoggerOptions,
 
-  // JWT/Auth middleware for security
-  JWTAuthOptions,
+  // Auth middleware for security
   APIKeyAuthOptions,
   JWKSLike,
   TokenExtractionOptions,
@@ -114,7 +112,6 @@ export type {
   LoggerOptions,
 
   // JWT/Auth middleware
-  JWTAuthOptions,
   APIKeyAuthOptions,
   JWKSLike,
   TokenExtractionOptions,
@@ -139,6 +136,77 @@ export type {
   PrometheusMiddlewareOptions,
   MetricsHandlerOptions,
   PrometheusIntegration,
+}
+
+/**
+ * Gateway JWT authentication options.
+ *
+ * This is the internal, hardened interface. It intentionally requires `exp`
+ * on tokens, supports `audience`/`issuer`, and derives the allowed algorithm
+ * list from the supplied key type.
+ */
+/** Key material accepted by the hardened JWT middleware. */
+export type JWTKeyLike = CryptoKey | Uint8Array
+
+export interface JWTAuthOptions {
+  /** Symmetric secret, PEM string, JWTKeyLike, or a function resolving to a key */
+  secret?:
+    | string
+    | Uint8Array
+    | JWTKeyLike
+    | ((req: ZeroRequest) => JWTKeyLike | Promise<JWTKeyLike>)
+  /** Remote JWKS URI */
+  jwksUri?: string
+  /** Inline JWKS object or resolver */
+  jwks?: any
+  /** Additional JWT verification options (merged, but cannot override security-critical ones) */
+  jwtOptions?: Record<string, any>
+  /** Custom token extractor */
+  getToken?: (
+    req: ZeroRequest,
+  ) => string | undefined | Promise<string | undefined>
+  /** Header name to read the token from */
+  tokenHeader?: string
+  /** Query parameter name to read the token from */
+  tokenQuery?: string
+  /** If true, missing/invalid tokens do not block the request */
+  optional?: boolean
+  /** Paths excluded from JWT checks. Matching uses boundary-aware semantics. */
+  excludePaths?: string[]
+  /** Static API keys or validation function */
+  apiKeys?:
+    | string[]
+    | ((
+        apiKey: string,
+        req: ZeroRequest,
+      ) => boolean | object | Promise<boolean | object>)
+  /** Header name for API key authentication */
+  apiKeyHeader?: string
+  /** Custom API key validator */
+  apiKeyValidator?: (
+    apiKey: string,
+    req: ZeroRequest,
+  ) => boolean | object | Promise<boolean | object>
+  /** Deprecated alias for apiKeyValidator */
+  validateApiKey?: (
+    apiKey: string,
+    req: ZeroRequest,
+  ) => boolean | object | Promise<boolean | object>
+  /** Custom 401 response or response factory */
+  unauthorizedResponse?:
+    | Response
+    | ((error: Error, req: ZeroRequest) => Response | object)
+  /** Custom error handler */
+  onError?: (
+    error: Error,
+    req: ZeroRequest,
+  ) => Response | void | Promise<Response | void>
+  /** Required audience claim(s) */
+  audience?: string | string[]
+  /** Required issuer claim */
+  issuer?: string | string[]
+  /** Explicitly allowed algorithms (derived from key type when omitted) */
+  algorithms?: string[]
 }
 
 /**

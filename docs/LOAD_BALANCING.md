@@ -503,6 +503,10 @@ gateway.addRoute({
       secure: true, // HTTPS only
       httpOnly: true, // No JavaScript access
       sameSite: 'lax',
+      // Cap in-memory sessions to prevent unbounded growth
+      maxSessions: 10000,
+      // Ignore unknown cookie values instead of minting a new session
+      unknownCookiePolicy: 'ignore',
     },
   },
 })
@@ -514,6 +518,8 @@ gateway.addRoute({
 2. Gateway sets a cookie identifying the chosen server
 3. Subsequent requests with the cookie go to the same server
 4. If server is unhealthy, fallback to base strategy
+5. Unknown cookie values are ignored by default to prevent memory exhaustion
+6. The session map is capped (`maxSessions`) with LRU eviction
 
 ## Advanced Configuration
 
@@ -841,6 +847,8 @@ stickySession: {
   enabled: true,
   cookieName: 'session_id',
   ttl: 3600000,
+  maxSessions: 10000,
+  unknownCookiePolicy: 'ignore',
 }
 
 // 2. Use IP hash

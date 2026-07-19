@@ -30,7 +30,7 @@ describe('JWTKeyRotationManager', () => {
     test('should throw error if no secrets configured', () => {
       expect(() => {
         new JWTKeyRotationManager({ secrets: [] })
-      }).toThrow('At least one JWT secret must be configured')
+      }).toThrow('At least one JWT secret or a jwksUri must be configured')
     })
 
     test('should throw error if multiple primary keys configured', () => {

@@ -5,13 +5,13 @@
  * before route-specific custom middleware for proper security enforcement.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'bun:test'
 import { BunGateway } from '../../src/gateway/gateway'
 import type { RequestHandler } from '../../src/interfaces/middleware'
 
 describe('Security Middleware Order', () => {
   let backendServer: any
-  let gateway: BunGateway
+  let gateway: BunGateway | undefined
 
   beforeAll(async () => {
     // Start a simple backend server
@@ -23,6 +23,13 @@ describe('Security Middleware Order', () => {
         })
       },
     })
+  })
+
+  afterEach(async () => {
+    if (gateway) {
+      await gateway.close()
+      gateway = undefined
+    }
   })
 
   afterAll(async () => {
@@ -54,7 +61,7 @@ describe('Security Middleware Order', () => {
       pattern: '/api/protected/*',
       target: 'http://localhost:9010',
       auth: {
-        secret: 'test-secret',
+        secret: 'test-secret-at-least-32-bytes-long-for-hs256!',
         optional: false,
       },
       middlewares: [customMiddleware],
@@ -77,7 +84,7 @@ describe('Security Middleware Order', () => {
       pattern: '/api/optional/*',
       target: 'http://localhost:9010',
       auth: {
-        secret: 'test-secret',
+        secret: 'test-secret-at-least-32-bytes-long-for-hs256!',
         optional: true, // Allow requests without auth
       },
       middlewares: [customMiddleware],
@@ -161,7 +168,7 @@ describe('Security Middleware Order', () => {
       pattern: '/api/secure/*',
       target: 'http://localhost:9010',
       auth: {
-        secret: 'test-secret',
+        secret: 'test-secret-at-least-32-bytes-long-for-hs256!',
         optional: false,
       },
       rateLimit: {
@@ -185,7 +192,7 @@ describe('Security Middleware Order', () => {
       pattern: '/api/secure-optional/*',
       target: 'http://localhost:9010',
       auth: {
-        secret: 'test-secret',
+        secret: 'test-secret-at-least-32-bytes-long-for-hs256!',
         optional: true, // Allow requests without auth
       },
       rateLimit: {

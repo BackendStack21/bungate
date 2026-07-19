@@ -254,6 +254,27 @@ describe('SessionManager', () => {
     })
   })
 
+  describe('rotateSessionId', () => {
+    test('should rotate an existing session id', () => {
+      const session = sessionManager.createSession('http://backend:3000', {
+        userId: '123',
+      })
+      const rotated = sessionManager.rotateSessionId(session.id)
+
+      expect(rotated).not.toBeNull()
+      expect(rotated!.id).not.toBe(session.id)
+      expect(rotated!.targetUrl).toBe(session.targetUrl)
+      expect(rotated!.metadata).toEqual({ userId: '123' })
+      expect(sessionManager.getSession(session.id)).toBeNull()
+      expect(sessionManager.getSession(rotated!.id)).not.toBeNull()
+    })
+
+    test('should return null for non-existent session', () => {
+      const rotated = sessionManager.rotateSessionId('non-existent-id')
+      expect(rotated).toBeNull()
+    })
+  })
+
   describe('deleteSession', () => {
     test('should delete an existing session', () => {
       const session = sessionManager.createSession('http://backend:3000')
@@ -521,6 +542,35 @@ describe('SessionManager', () => {
 
       // After destroy, cleanup should not run
       expect(manager.getSessionCount()).toBe(0)
+    })
+
+    test('should invoke cleanup callback from interval', () => {
+      const originalSetInterval = global.setInterval
+      let capturedCallback: (() => void) | undefined
+      global.setInterval = ((callback: () => void) => {
+        capturedCallback = callback
+        return 123 as unknown as ReturnType<typeof setInterval>
+      }) as any
+
+      try {
+        const manager = new SessionManager({ ttl: 1 })
+        manager.createSession('http://backend:3000')
+        expect(capturedCallback).toBeDefined()
+
+        // Wait for the session to expire, then invoke the captured interval callback.
+        return new Promise<void>((resolve) => {
+          setTimeout(() => {
+            capturedCallback!()
+            expect(manager.getSessionCount()).toBe(0)
+            manager.destroy()
+            global.setInterval = originalSetInterval
+            resolve()
+          }, 50)
+        })
+      } catch (error) {
+        global.setInterval = originalSetInterval
+        throw error
+      }
     })
 
     test('should clear all sessions on destroy', () => {

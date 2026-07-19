@@ -631,38 +631,7 @@ describe('Hooks E2E Tests', () => {
   }, 20000)
 
   test('should handle async fallback response generation', async () => {
-    // Create a new failing server for this test
-    const asyncFailingPort = Math.floor(Math.random() * 10000) + 56000
-    const asyncFailingServer = Bun.serve({
-      port: asyncFailingPort,
-      fetch: async (req) => {
-        const url = new URL(req.url)
-        if (url.pathname === '/error') {
-          return new Response('Server error', { status: 500 })
-        }
-        return new Response('OK', { status: 200 })
-      },
-    } as Parameters<typeof Bun.serve>[0])
-
-    // Wait for the failing server to be ready
-    let failingServerReady = false
-    for (let i = 0; i < 20; i++) {
-      try {
-        const healthCheck = await fetch(`http://localhost:${asyncFailingPort}/`)
-        if (healthCheck.status === 200) {
-          failingServerReady = true
-          break
-        }
-      } catch {
-        await new Promise((resolve) => setTimeout(resolve, 50))
-      }
-    }
-    if (!failingServerReady) {
-      asyncFailingServer.stop()
-      throw new Error('Failing server failed to start')
-    }
-
-    // Create a new gateway with async onError hook
+    // Reuse the shared failing server so we do not re-flake on CI server startup
     const asyncGatewayPort = Math.floor(Math.random() * 10000) + 53000
     const asyncGateway = new BunGateway({
       server: {
@@ -674,8 +643,8 @@ describe('Hooks E2E Tests', () => {
 
     const asyncRouteConfig: RouteConfig = {
       pattern: '/api/async-fallback/*',
-      target: `http://localhost:${asyncFailingPort}`,
-      timeout: 1000,
+      target: `http://localhost:${failingPort}`,
+      timeout: 5000,
       proxy: {
         pathRewrite: {
           '^/api/async-fallback': '',
@@ -686,7 +655,7 @@ describe('Hooks E2E Tests', () => {
           asyncErrorCalls.push({ req, error })
 
           // Simulate async operation (e.g., logging, fetching from cache, etc.)
-          await new Promise((resolve) => setTimeout(resolve, 50))
+          await new Promise((resolve) => setTimeout(resolve, 10))
 
           // Generate dynamic fallback based on the request
           const url = new URL(req.url)
@@ -712,12 +681,9 @@ describe('Hooks E2E Tests', () => {
     asyncGateway.addRoute(asyncRouteConfig)
     const asyncServer = await asyncGateway.listen(asyncGatewayPort)
 
-    // Wait for the gateway server to be ready
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
     // Wait for the gateway server to be ready with proper health check
     let gatewayReady = false
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 100; i++) {
       try {
         const healthCheck = await fetch(
           `http://localhost:${asyncGatewayPort}/api/async-fallback/`,
@@ -731,7 +697,6 @@ describe('Hooks E2E Tests', () => {
     }
     if (!gatewayReady) {
       asyncServer.stop()
-      asyncFailingServer.stop()
       throw new Error('Gateway server failed to start')
     }
 
@@ -758,7 +723,6 @@ describe('Hooks E2E Tests', () => {
       )
     } finally {
       asyncServer.stop()
-      asyncFailingServer.stop()
     }
   }, 30000)
 })

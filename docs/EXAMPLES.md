@@ -38,15 +38,16 @@ const gateway = new BunGateway({
       key: './certs/key.pem',
       redirectHTTP: true,
       redirectPort: 80,
+      redirectAllowedHosts: ['api.myapp.com', '*.myapp.com'],
     },
   },
   auth: {
     secret: process.env.JWT_SECRET,
     jwtOptions: {
       algorithms: ['HS256'],
-      issuer: 'https://auth.myapp.com',
-      audience: 'https://api.myapp.com',
     },
+    issuer: 'https://auth.myapp.com',
+    audience: 'https://api.myapp.com',
     excludePaths: ['/health', '/metrics', '/auth/*', '/public/*'],
   },
   cors: {
@@ -139,7 +140,9 @@ gateway.addRoute({
   rateLimit: {
     max: 1000,
     windowMs: 60000,
-    keyGenerator: (req) => req.headers.get('x-forwarded-for') || 'unknown',
+    // Prefer a trusted client identifier. Avoid raw X-Forwarded-For unless
+    // trusted proxies are explicitly configured.
+    keyGenerator: (req) => req.headers.get('cf-connecting-ip') || 'unknown',
   },
 })
 
@@ -234,6 +237,8 @@ gateway.addRoute({
       ttl: 3600000,
       secure: true,
       httpOnly: true,
+      maxSessions: 10000,
+      unknownCookiePolicy: 'ignore',
     },
   },
 })

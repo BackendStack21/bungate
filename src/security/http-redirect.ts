@@ -15,10 +15,24 @@ export interface HTTPRedirectConfig {
   port: number
   /** HTTPS port to redirect to */
   httpsPort: number
-  /** Optional hostname for redirect (defaults to request hostname) */
+  /** Optional hostname for redirect (overrides request hostname) */
   hostname?: string
+  /** Allowed request Host header values. Supports leading wildcards. */
+  allowHosts?: string[]
   /** Logger instance */
   logger?: Logger
+}
+
+export function matchesAllowedHost(
+  requestHost: string,
+  allowed: string,
+): boolean {
+  if (allowed.startsWith('*.')) {
+    const suffix = allowed.slice(2).toLowerCase()
+    const h = requestHost.toLowerCase()
+    return h === suffix || h.endsWith('.' + suffix)
+  }
+  return requestHost.toLowerCase() === allowed.toLowerCase()
 }
 
 /**
@@ -37,7 +51,7 @@ export interface HTTPRedirectConfig {
  * ```
  */
 export function createHTTPRedirectServer(config: HTTPRedirectConfig): Server {
-  const { port, httpsPort, hostname, logger } = config
+  const { port, httpsPort, hostname, allowHosts, logger } = config
 
   const server = Bun.serve({
     port,
@@ -45,17 +59,47 @@ export function createHTTPRedirectServer(config: HTTPRedirectConfig): Server {
       const url = new URL(req.url)
 
       // Validate the incoming Host header. When an explicit hostname is
-      // configured, always use it. Otherwise only accept the configured
-      // hostname; do not use arbitrary request Host headers to avoid
-      // open-redirect / cache-poisoning attacks.
+      // configured, always use it. Otherwise only allow hosts listed in
+      // allowHosts. Arbitrary request Host headers must not be used for the
+      // redirect Location to prevent open-redirect / cache-poisoning (V-4).
       const requestHost = url.hostname
       const redirectHost = hostname ?? requestHost
 
-      if (hostname && requestHost !== '' && requestHost !== hostname) {
-        logger?.warn?.('Rejected HTTP redirect for unexpected host', {
-          expected: hostname,
-          received: requestHost,
-        })
+      if (hostname) {
+        if (requestHost !== '' && requestHost !== hostname) {
+          logger?.warn?.('Rejected HTTP redirect for unexpected host', {
+            expected: hostname,
+            received: requestHost,
+          })
+          return new Response(JSON.stringify({ error: 'Bad Request' }), {
+            status: 400,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+      } else if (allowHosts && allowHosts.length > 0) {
+        if (
+          requestHost === '' ||
+          !allowHosts.some((allowed) =>
+            matchesAllowedHost(requestHost, allowed),
+          )
+        ) {
+          logger?.warn?.('Rejected HTTP redirect for disallowed host', {
+            allowed: allowHosts,
+            received: requestHost,
+          })
+          return new Response(JSON.stringify({ error: 'Bad Request' }), {
+            status: 400,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+      } else {
+        // No hostname or allow-list configured: do not redirect.
+        logger?.warn?.(
+          'Rejected HTTP redirect: no hostname or allowHosts configured',
+          {
+            received: requestHost,
+          },
+        )
         return new Response(JSON.stringify({ error: 'Bad Request' }), {
           status: 400,
           headers: { 'content-type': 'application/json' },

@@ -159,6 +159,8 @@ interface TLSConfig {
   cipherSuites?: string[]
   redirectHTTP?: boolean
   redirectPort?: number
+  /** Allowed Host header values for the HTTP->HTTPS redirect server. Supports leading wildcards. */
+  redirectAllowedHosts?: string[]
 }
 ```
 
@@ -174,9 +176,26 @@ const gateway = new BunGateway({
       minVersion: 'TLSv1.3',
       redirectHTTP: true,
       redirectPort: 80,
+      redirectAllowedHosts: ['example.com', '*.example.com'],
     },
   },
 })
+```
+
+#### TrustedProxiesConfig
+
+```typescript
+interface TrustedProxiesConfig {
+  enabled: boolean
+  trustedIPs?: string[]
+  trustedNetworks?: string[]
+  maxForwardedDepth?: number
+  trustAll?: boolean
+  /** Honor CF-Connecting-IP only when the immediate proxy is Cloudflare. Default: false */
+  trustCloudflare?: boolean
+  /** Honor X-Real-IP / X-Client-IP from the validated immediate proxy. Default: false */
+  trustXRealIP?: boolean
+}
 ```
 
 #### SecurityHeadersConfig
@@ -246,21 +265,45 @@ security: {
 
 ```typescript
 interface AuthConfig {
-  secret?: string
+  /** Symmetric secret, PEM string, imported key, or a resolver function */
+  secret?:
+    | string
+    | Uint8Array
+    | JWTKeyLike
+    | ((req: Request) => JWTKeyLike | Promise<JWTKeyLike>)
   jwksUri?: string
-  jwtOptions?: {
-    algorithms: string[]
-    issuer?: string
-    audience?: string
-    maxAge?: string | number
-  }
-  apiKeys?: string[]
+  jwks?: any
+  jwtOptions?: Record<string, any>
+  /** Required issuer claim (recommended) */
+  issuer?: string | string[]
+  /** Required audience claim (recommended) */
+  audience?: string | string[]
+  /** Explicitly allowed algorithms. Derived from the key type when omitted. */
+  algorithms?: string[]
+  apiKeys?:
+    | string[]
+    | ((
+        apiKey: string,
+        req: Request,
+      ) => boolean | object | Promise<boolean | object>)
   apiKeyHeader?: string
-  apiKeyValidator?: (key: string, req: Request) => Promise<boolean> | boolean
+  apiKeyValidator?: (
+    key: string,
+    req: Request,
+  ) => boolean | object | Promise<boolean | object>
+  /** Boundary-aware path exclusions. `/public/*` excludes `/public/foo` but not `/publicity/foo */
   excludePaths?: string[]
   optional?: boolean
-  getToken?: (req: Request) => string | null
-  onError?: (error: Error, req: Request) => Response
+  getToken?: (req: Request) => string | undefined | Promise<string | undefined>
+  tokenHeader?: string
+  tokenQuery?: string
+  unauthorizedResponse?:
+    | Response
+    | ((error: Error, req: Request) => Response | object)
+  onError?: (
+    error: Error,
+    req: Request,
+  ) => Response | void | Promise<Response | void>
 }
 ```
 
@@ -269,12 +312,10 @@ interface AuthConfig {
 ```typescript
 const gateway = new BunGateway({
   auth: {
-    secret: process.env.JWT_SECRET,
-    jwtOptions: {
-      algorithms: ['HS256'],
-      issuer: 'https://auth.example.com',
-      audience: 'https://api.example.com',
-    },
+    secret: process.env.JWT_SECRET, // HS256 secrets should be >= 32 bytes
+    issuer: 'https://auth.example.com',
+    audience: 'https://api.example.com',
+    // algorithms is optional; Bungate derives it from the key type.
     excludePaths: ['/health', '/public/*'],
   },
 })
@@ -341,7 +382,7 @@ interface RouteConfig {
   circuitBreaker?: CircuitBreakerConfig
   timeout?: number
   middlewares?: Middleware[]
-  proxy?: ProxyConfig
+  proxy?: GatewayProxyOptions
   hooks?: RouteHooks
 }
 ```
@@ -440,6 +481,14 @@ interface StickySessionConfig {
   secure?: boolean // Default: false
   httpOnly?: boolean // Default: true
   sameSite?: 'strict' | 'lax' | 'none'
+  /** Maximum in-memory sessions. Oldest entries are evicted when the cap is hit. */
+  maxSessions?: number // Default: 10000
+  /**
+   * How to handle unknown session cookies.
+   * 'ignore' treats them as cookie-less (prevents memory DoS).
+   * 'create' mints a new session for the unknown value.
+   */
+  unknownCookiePolicy?: 'ignore' | 'create' // Default: 'ignore'
 }
 ```
 
@@ -469,6 +518,8 @@ interface RateLimitConfig {
   keyGenerator?: (req: Request) => string
   message?: string
   statusCode?: number
+  /** Boundary-aware path exclusions for rate limiting */
+  excludePaths?: string[]
 }
 ```
 
@@ -528,14 +579,22 @@ gateway.addRoute({
 })
 ```
 
-### ProxyConfig
+### GatewayProxyOptions
 
 ```typescript
-interface ProxyConfig {
+interface GatewayProxyOptions {
   timeout?: number
   headers?: Record<string, string | (() => string)>
   stripPath?: boolean
   preserveHostHeader?: boolean
+  /** Rewrite incoming paths before forwarding (regex -> replacement, or function) */
+  pathRewrite?: Record<string, string> | ((path: string) => string)
+  /** Allowed redirect target hostnames when followRedirects is enabled. Supports leading wildcards. */
+  redirectAllowlist?: string[]
+  /** Allow redirects only to the same origin as the original upstream target. Default: true */
+  redirectSameOrigin?: boolean
+  /** Per-request fetch RequestInit options (used internally for SSRF protection) */
+  request?: RequestInit
 }
 ```
 
@@ -553,6 +612,8 @@ gateway.addRoute({
     },
     stripPath: false,
     preserveHostHeader: true,
+    // Redirects are followed manually only for same-origin or allow-listed hosts.
+    redirectSameOrigin: true,
   },
 })
 ```
