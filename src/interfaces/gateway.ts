@@ -433,7 +433,7 @@ export interface Gateway {
    * console.log(`Gateway running on port ${server.port}`)
    * ```
    */
-  listen(port?: number): Promise<Server>
+  listen(port?: number): Promise<Server<unknown>>
 
   /**
    * Gracefully stop the gateway server

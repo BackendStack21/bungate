@@ -86,7 +86,7 @@ export class BunGateway implements Gateway {
   /** 0http-bun router instance for high-performance request routing */
   private router: IRouter
   /** Bun server instance when using built-in server */
-  private server: Server | null = null
+  private server: Server<unknown> | null = null
   /** Map of route patterns to their proxy instances */
   private proxies: Map<string, ProxyInstance> = new Map()
   /** Map of route patterns to their load balancer instances */
@@ -874,7 +874,7 @@ export class BunGateway implements Gateway {
     return this.config
   }
 
-  async listen(port?: number): Promise<Server> {
+  async listen(port?: number): Promise<Server<unknown>> {
     const listenPort = port ?? this.config.server?.port ?? 3000
 
     // If cluster mode is enabled and we're the master, start the cluster
@@ -884,7 +884,7 @@ export class BunGateway implements Gateway {
 
       // Master process doesn't serve requests directly in cluster mode
       // Instead, it manages worker processes
-      return new Promise(() => {}) as Promise<Server>
+      return new Promise(() => {}) as Promise<Server<unknown>>
     }
 
     // Load and validate TLS certificates if enabled

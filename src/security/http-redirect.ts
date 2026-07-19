@@ -50,7 +50,7 @@ export function matchesAllowedHost(
  * });
  * ```
  */
-export function createHTTPRedirectServer(config: HTTPRedirectConfig): Server {
+export function createHTTPRedirectServer(config: HTTPRedirectConfig): Server<unknown> {
   const { port, httpsPort, hostname, allowHosts, logger } = config
 
   const server = Bun.serve({
@@ -147,7 +147,7 @@ export function createHTTPRedirectServer(config: HTTPRedirectConfig): Server {
  * Manages the lifecycle of the HTTP redirect server
  */
 export class HTTPRedirectManager {
-  private server: Server | null = null
+  private server: Server<unknown> | null = null
   private config: HTTPRedirectConfig
 
   constructor(config: HTTPRedirectConfig) {
@@ -157,7 +157,7 @@ export class HTTPRedirectManager {
   /**
    * Starts the HTTP redirect server
    */
-  start(): Server {
+  start(): Server<unknown> {
     if (this.server) {
       throw new Error('HTTP redirect server is already running')
     }
@@ -187,7 +187,7 @@ export class HTTPRedirectManager {
   /**
    * Gets the server instance
    */
-  getServer(): Server | null {
+  getServer(): Server<unknown> | null {
     return this.server
   }
 }
