@@ -350,6 +350,53 @@ describe('HttpLoadBalancer', () => {
       // let's test the session handling logic by manually creating a session
       // This is a limitation of the current test setup
     })
+
+    test('caps sticky session map and ignores unknown cookies by default (V-3)', () => {
+      const config: LoadBalancerConfig = {
+        strategy: 'round-robin',
+        targets: [getTarget(0), getTarget(1)],
+        stickySession: {
+          enabled: true,
+          cookieName: 'lb-session',
+          ttl: 60000,
+          maxSessions: 5,
+        },
+      }
+
+      loadBalancer = createLoadBalancer(config)
+
+      // Unknown cookie values must not mint new sessions.
+      for (let i = 0; i < 10; i++) {
+        const req = createMockRequestWithCookie('lb-session', `unknown-${i}`)
+        loadBalancer.selectTarget(req)
+      }
+
+      const sessions = (loadBalancer as any).sessions
+      expect(sessions.size).toBe(0)
+
+      // New requests without cookies are bounded by maxSessions.
+      for (let i = 0; i < 10; i++) {
+        loadBalancer.selectTarget(createMockRequest())
+      }
+      expect(sessions.size).toBe(5)
+    })
+
+    test('refuses invalid sticky-session cookie names (V-21)', () => {
+      const balancer = createLoadBalancer({
+        strategy: 'round-robin',
+        targets: [getTarget(0), getTarget(1)],
+        stickySession: {
+          enabled: true,
+          cookieName: 'lb;session',
+          ttl: 60000,
+        },
+      })
+
+      // Cookie name validation is enforced when a Set-Cookie header is built.
+      expect(() => balancer.selectTarget(createMockRequest())).toThrow(
+        /Invalid sticky-session cookie name/,
+      )
+    })
   })
 
   describe('Statistics', () => {
@@ -2323,6 +2370,161 @@ describe('HttpLoadBalancer', () => {
 
       loadBalancer = createLoadBalancer(config)
       expect((loadBalancer as any).sessionCleanupInterval).toBeUndefined()
+    })
+  })
+
+  describe('Security remediation coverage', () => {
+    test('refreshStickySession updates expiry and returns cookie', () => {
+      const config: LoadBalancerConfig = {
+        strategy: 'round-robin',
+        targets: [getTarget(0)],
+        stickySession: {
+          enabled: true,
+          cookieName: 'lb-session',
+          ttl: 60000,
+        },
+      }
+
+      loadBalancer = createLoadBalancer(config)
+      const sessions = (loadBalancer as any).sessions as Map<string, any>
+      sessions.set('session-1', {
+        targetUrl: getTarget(0).url,
+        createdAt: Date.now(),
+        expiresAt: Date.now() - 1000,
+      })
+
+      const refresh = (loadBalancer as any).refreshStickySession.bind(
+        loadBalancer,
+      )
+      const cookie = refresh('session-1')
+      expect(cookie).toContain('lb-session=session-1')
+      expect(sessions.get('session-1')!.expiresAt).toBeGreaterThan(Date.now())
+
+      // Unknown session returns undefined
+      expect(refresh('missing')).toBeUndefined()
+    })
+
+    test('readBoundedResponse reads at most maxBytes', async () => {
+      const config: LoadBalancerConfig = {
+        strategy: 'round-robin',
+        targets: [getTarget(0)],
+      }
+
+      loadBalancer = createLoadBalancer(config)
+      const reader = (loadBalancer as any).readBoundedResponse.bind(
+        loadBalancer,
+      )
+
+      const response = new Response('hello world')
+      const text = await reader(response, 5)
+      expect(text).toBe('hello')
+
+      const emptyResponse = new Response(null)
+      expect(await reader(emptyResponse, 100)).toBe('')
+    })
+
+    test('health check allowedHosts supports CIDR matching', async () => {
+      const fetchSpy = createFetchSpy(async () => {
+        return new Response('OK', { status: 200 })
+      })
+
+      const config: LoadBalancerConfig = {
+        strategy: 'round-robin',
+        targets: [
+          {
+            url: 'http://192.168.1.50:8080',
+            healthy: true,
+            weight: 1,
+            connections: 0,
+            averageResponseTime: 100,
+            lastHealthCheck: Date.now(),
+          },
+        ],
+        healthCheck: {
+          enabled: true,
+          interval: 1000,
+          timeout: 1000,
+          path: '/health',
+          allowedHosts: ['192.168.1.0/24'],
+        },
+      }
+
+      loadBalancer = createLoadBalancer(config)
+
+      // Wait for at least one health check cycle
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+      expect(loadBalancer.getHealthyTargets().length).toBe(1)
+      fetchSpy.mockRestore()
+    })
+
+    test('health check allowedHosts rejects non-matching hosts', async () => {
+      const fetchSpy = createFetchSpy(async () => {
+        return new Response('OK', { status: 200 })
+      })
+
+      const config: LoadBalancerConfig = {
+        strategy: 'round-robin',
+        targets: [
+          {
+            url: 'http://10.0.0.5:8080',
+            healthy: true,
+            weight: 1,
+            connections: 0,
+            averageResponseTime: 100,
+            lastHealthCheck: Date.now(),
+          },
+        ],
+        healthCheck: {
+          enabled: true,
+          interval: 1000,
+          timeout: 1000,
+          path: '/health',
+          allowedHosts: ['192.168.1.0/24'],
+        },
+      }
+
+      loadBalancer = createLoadBalancer(config)
+
+      // Allow enough health-check cycles to cross the default failure threshold.
+      await new Promise((resolve) => setTimeout(resolve, 4500))
+      expect(loadBalancer.getHealthyTargets().length).toBe(0)
+      fetchSpy.mockRestore()
+    })
+
+    test('startSessionCleanup interval callback cleans expired sessions', () => {
+      const originalSetInterval = globalThis.setInterval
+      let capturedCallback: (() => void) | undefined
+
+      globalThis.setInterval = ((callback: any) => {
+        capturedCallback = callback
+        return 123 as any
+      }) as any
+
+      try {
+        const config: LoadBalancerConfig = {
+          strategy: 'round-robin',
+          targets: [getTarget(0)],
+          stickySession: {
+            enabled: true,
+            cookieName: 'lb-session',
+            ttl: 60000,
+          },
+        }
+
+        loadBalancer = createLoadBalancer(config)
+        const sessions = (loadBalancer as any).sessions as Map<string, any>
+        sessions.set('expired', {
+          targetUrl: getTarget(0).url,
+          createdAt: Date.now(),
+          expiresAt: Date.now() - 1000,
+        })
+
+        expect(capturedCallback).toBeDefined()
+        capturedCallback!()
+        expect(sessions.has('expired')).toBe(false)
+      } finally {
+        globalThis.setInterval = originalSetInterval
+      }
     })
   })
 })

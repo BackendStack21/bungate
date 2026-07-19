@@ -160,8 +160,9 @@ gateway.addRoute({
     max: 100, // 100 requests
     windowMs: 60000, // per minute
     keyGenerator: (req) => {
-      // Rate limit by IP address
-      return req.headers.get('x-forwarded-for') || 'unknown'
+      // Use a trusted client identifier. Avoid raw X-Forwarded-For unless
+      // trusted proxies are explicitly configured.
+      return req.headers.get('cf-connecting-ip') || 'unknown'
     },
   },
 })
@@ -178,8 +179,9 @@ const gateway = new BunGateway({
     secret: process.env.JWT_SECRET,
     jwtOptions: {
       algorithms: ['HS256'],
-      issuer: 'https://auth.myapp.com',
     },
+    issuer: 'https://auth.myapp.com',
+    audience: 'https://api.myapp.com',
     excludePaths: ['/health', '/auth/login'],
   },
 })
@@ -199,7 +201,7 @@ Enable HTTPS with TLS:
 
 ```typescript
 const gateway = new BunGateway({
-  server: { port: 443 },
+  server: { port: 443, hostname: 'example.com' },
   security: {
     tls: {
       enabled: true,
@@ -208,6 +210,7 @@ const gateway = new BunGateway({
       minVersion: 'TLSv1.3',
       redirectHTTP: true,
       redirectPort: 80,
+      redirectAllowedHosts: ['example.com', '*.example.com'],
     },
   },
 })

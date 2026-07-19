@@ -168,7 +168,7 @@ TLS (Transport Layer Security) encrypts all traffic between clients and the gate
 import { BunGateway } from 'bungate'
 
 const gateway = new BunGateway({
-  server: { port: 443 },
+  server: { port: 443, hostname: 'example.com' },
   security: {
     tls: {
       enabled: true,
@@ -177,6 +177,8 @@ const gateway = new BunGateway({
       minVersion: 'TLSv1.3',
       redirectHTTP: true,
       redirectPort: 80,
+      // Prevent open redirects via Host header
+      redirectAllowedHosts: ['example.com', '*.example.com'],
     },
   },
 })
@@ -188,7 +190,7 @@ await gateway.listen()
 
 ```typescript
 const gateway = new BunGateway({
-  server: { port: 443 },
+  server: { port: 443, hostname: 'example.com' },
   security: {
     tls: {
       enabled: true,
@@ -205,6 +207,7 @@ const gateway = new BunGateway({
       rejectUnauthorized: true,
       redirectHTTP: true,
       redirectPort: 80,
+      redirectAllowedHosts: ['example.com', '*.example.com'],
     },
   },
 })
@@ -299,6 +302,7 @@ gateway.addRoute({
 ### Attack Prevention
 
 - **Directory Traversal**: `../` sequences blocked and sanitized
+- **Double/Multiple Encoding**: Paths are recursively decoded; still-encoded sequences after decoding are rejected
 - **Null Byte Injection**: `%00` and null characters rejected
 - **XSS Attempts**: Script tags and JavaScript protocols blocked
 - **SQL Injection**: Special characters in query params validated
@@ -357,20 +361,15 @@ gateway.addRoute({
 }
 ```
 
-**Development Mode** (detailed):
+**Development Mode** (sanitized by default; set `includeStackTrace: true` for detailed responses):
 
 ```json
 {
   "error": {
     "code": "INTERNAL_ERROR",
-    "message": "Database connection failed: ECONNREFUSED",
+    "message": "An internal error occurred",
     "requestId": "req_abc123",
-    "timestamp": 1699564800000,
-    "stack": "Error: Database connection failed...",
-    "details": {
-      "host": "localhost",
-      "port": 5432
-    }
+    "timestamp": 1699564800000
   }
 }
 ```
@@ -465,6 +464,10 @@ gateway.addRoute({
       enabled: true,
       cookieName: 'app_session',
       ttl: 3600000,
+      // Cap in-memory sessions to prevent unbounded growth
+      maxSessions: 10000,
+      // Ignore unknown cookie values instead of minting new sessions
+      unknownCookiePolicy: 'ignore',
     },
   },
 })
@@ -546,10 +549,15 @@ const gateway = new BunGateway({
       ],
       maxForwardedDepth: 3,
       trustAll: false, // Never use in production!
+      // Only enable these when the immediate upstream is actually that proxy type
+      trustCloudflare: true,
+      trustXRealIP: false,
     },
   },
 })
 ```
+
+**Cloudflare / X-Real-IP headers:** These proxy-specific headers are ignored by default even when the peer is trusted. Only enable `trustCloudflare` when the immediate upstream is Cloudflare, and `trustXRealIP` when your trusted proxy is responsible for setting `X-Real-IP`.
 
 ### Predefined Trusted Networks
 

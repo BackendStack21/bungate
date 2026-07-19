@@ -167,7 +167,7 @@ For production deployments with HTTPS:
 import { BunGateway } from 'bungate'
 
 const gateway = new BunGateway({
-  server: { port: 443 },
+  server: { port: 443, hostname: 'localhost' },
   security: {
     tls: {
       enabled: true,
@@ -176,6 +176,8 @@ const gateway = new BunGateway({
       minVersion: 'TLSv1.3',
       redirectHTTP: true,
       redirectPort: 80,
+      // Prevent open redirects via Host header
+      redirectAllowedHosts: ['localhost'],
     },
   },
 })
@@ -188,6 +190,7 @@ gateway.addRoute({
     jwtOptions: {
       algorithms: ['HS256'],
       issuer: 'https://auth.example.com',
+      audience: 'https://api.example.com',
     },
   },
 })
@@ -305,6 +308,11 @@ const gateway = new BunGateway({
   cluster: { enabled: true, workers: 4 },
   auth: {
     secret: process.env.JWT_SECRET,
+    jwtOptions: {
+      algorithms: ['HS256'],
+      issuer: 'https://auth.myapp.com',
+      audience: 'https://api.myapp.com',
+    },
     excludePaths: ['/health', '/auth/*'],
   },
   cors: {

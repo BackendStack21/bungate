@@ -84,6 +84,8 @@ const MAX_HEALTH_CHECK_TIMEOUT = 60000
 const MAX_HEALTH_THRESHOLD = 20
 /** Maximum health check response body read size (bytes) */
 const MAX_HEALTH_CHECK_BODY_SIZE = 4096
+/** Default sticky session cap */
+const DEFAULT_STICKY_SESSION_MAX_SESSIONS = 10000
 
 /**
  * Returns a cryptographically secure random integer in [0, max).
@@ -121,12 +123,18 @@ export class HttpLoadBalancer implements LoadBalancer {
   private totalRequests = 0
   /** Health check interval timer */
   private healthCheckInterval?: Timer
+  /** Whether a health-check round is currently running */
+  private healthCheckInProgress = false
   /** Session tracking for sticky sessions */
   private sessions = new Map<string, Session>()
   /** Session cleanup interval timer */
   private sessionCleanupInterval?: Timer
   /** Session manager for cryptographically secure session handling */
   private sessionManager?: SessionManager
+  /** Maximum sticky sessions retained in memory */
+  private stickySessionMaxSessions = DEFAULT_STICKY_SESSION_MAX_SESSIONS
+  /** How to handle unknown sticky-session cookies */
+  private stickySessionUnknownPolicy: 'ignore' | 'create' = 'ignore'
   /** Logger instance for monitoring and debugging */
   private logger: Logger
   /** Trusted proxy validator for secure client IP extraction */
@@ -150,6 +158,16 @@ export class HttpLoadBalancer implements LoadBalancer {
 
     // Validate and clamp health-check configuration
     this.validateHealthCheckConfig()
+
+    // Apply sticky-session bounds
+    if (config.stickySession?.enabled) {
+      this.stickySessionMaxSessions = Math.max(
+        1,
+        config.stickySession.maxSessions ?? DEFAULT_STICKY_SESSION_MAX_SESSIONS,
+      )
+      this.stickySessionUnknownPolicy =
+        config.stickySession.unknownCookiePolicy ?? 'ignore'
+    }
 
     this.logger.info('Load balancer initialized', {
       strategy: config.strategy,
@@ -197,6 +215,14 @@ export class HttpLoadBalancer implements LoadBalancer {
   private validateHealthCheckConfig(): void {
     const hc = this.config.healthCheck
     if (!hc?.enabled) return
+
+    // Apply defaults first so missing fields do not produce NaN later.
+    hc.interval ??= 10000
+    hc.timeout ??= 5000
+    hc.failureThreshold ??= 3
+    hc.successThreshold ??= 2
+    hc.minHealthyTargets ??= 1
+    hc.path ??= '/health'
 
     let interval = hc.interval
     let timeout = hc.timeout
@@ -287,6 +313,9 @@ export class HttpLoadBalancer implements LoadBalancer {
       const stickyResult = this.getStickyTarget(request)
       if (stickyResult?.target) {
         this.recordRequest(stickyResult.target.url)
+        // Refresh TTL and re-issue the cookie on every hit so active sessions
+        // do not expire prematurely (V-19).
+        stickySetCookie = this.refreshStickySession(stickyResult.sessionId!)
         this.logger.logLoadBalancing(
           this.config.strategy,
           stickyResult.target.url,
@@ -296,6 +325,11 @@ export class HttpLoadBalancer implements LoadBalancer {
             healthyTargets: healthyTargets.length,
           },
         )
+        Object.defineProperty(stickyResult.target, '__stickySetCookie', {
+          value: stickySetCookie,
+          enumerable: false,
+          configurable: true,
+        })
         return stickyResult.target
       }
     }
@@ -449,7 +483,10 @@ export class HttpLoadBalancer implements LoadBalancer {
    * @param healthy - New health status
    */
   updateTargetHealth(url: string, healthy: boolean): void {
-    const minHealthyTargets = this.config.healthCheck?.minHealthyTargets ?? 1
+    const minHealthyTargets = Math.min(
+      this.config.healthCheck?.minHealthyTargets ?? 1,
+      Math.max(1, this.targets.size),
+    )
     if (healthy) {
       this.applyHealthState(url, true)
     } else {
@@ -540,11 +577,14 @@ export class HttpLoadBalancer implements LoadBalancer {
       return
     }
 
-    const interval = this.config.healthCheck.interval
+    const interval = this.config.healthCheck.interval!
     // Add jitter (up to 10% of interval) to prevent thundering herds
     const jitter = Math.floor(secureRandom() * interval * 0.1)
     this.healthCheckInterval = setInterval(() => {
-      this.performHealthChecks()
+      // Skip a round if the previous one is still running (V-14).
+      if (!this.healthCheckInProgress) {
+        this.performHealthChecks()
+      }
     }, interval + jitter)
   }
 
@@ -769,25 +809,27 @@ export class HttpLoadBalancer implements LoadBalancer {
 
   private getStickyTarget(request: Request): {
     target: LoadBalancerTarget | null
+    sessionId: string | null
   } {
     if (!this.config.stickySession?.enabled) {
-      return { target: null }
+      return { target: null, sessionId: null }
     }
 
     const sessionId = this.getSessionId(request)
     if (!sessionId) {
-      return { target: null }
+      return { target: null, sessionId: null }
     }
 
     const session = this.sessions.get(sessionId)
     if (!session || Date.now() > session.expiresAt) {
       // Unknown / expired session IDs are not allowed to create new affinity.
-      return { target: null }
+      return { target: null, sessionId: null }
     }
 
     const target = this.targets.get(session.targetUrl)
     return {
       target: target && target.healthy ? this.sanitizeTarget(target) : null,
+      sessionId,
     }
   }
 
@@ -801,19 +843,17 @@ export class HttpLoadBalancer implements LoadBalancer {
 
     const existingSessionId = this.getSessionId(request)
 
-    // If the client already has a valid session for this target, refresh it
-    if (existingSessionId) {
-      const existing = this.sessions.get(existingSessionId)
-      if (
-        existing &&
-        existing.targetUrl === target.url &&
-        Date.now() <= existing.expiresAt
-      ) {
-        existing.expiresAt =
-          Date.now() + (this.config.stickySession.ttl ?? 3600000)
-        return this.buildStickySetCookie(existingSessionId)
+    // Unknown or expired session cookies must not be allowed to mint new
+    // sessions unless explicitly configured (V-3). This prevents attackers
+    // from flooding memory with random cookie values.
+    if (existingSessionId && !this.sessions.has(existingSessionId)) {
+      if (this.stickySessionUnknownPolicy === 'ignore') {
+        return undefined
       }
     }
+
+    // Enforce the maximum in-memory session cap (V-3).
+    this.evictOldestSessionIfNeeded()
 
     // Generate a new cryptographically secure session ID server-side
     const sessionId = this.generateSessionId()
@@ -829,9 +869,48 @@ export class HttpLoadBalancer implements LoadBalancer {
     return this.buildStickySetCookie(sessionId)
   }
 
+  /**
+   * Refresh an existing sticky session's TTL and return a new Set-Cookie header.
+   */
+  private refreshStickySession(sessionId: string): string | undefined {
+    const session = this.sessions.get(sessionId)
+    if (!session) return undefined
+    const ttl = this.config.stickySession?.ttl ?? 3600000
+    session.expiresAt = Date.now() + ttl
+    return this.buildStickySetCookie(sessionId)
+  }
+
+  /**
+   * Evict the oldest session when the cap is reached.
+   */
+  private evictOldestSessionIfNeeded(): void {
+    if (this.sessions.size < this.stickySessionMaxSessions) {
+      return
+    }
+    let oldestId: string | null = null
+    let oldestTime = Number.POSITIVE_INFINITY
+    for (const [id, session] of this.sessions.entries()) {
+      if (session.createdAt < oldestTime) {
+        oldestTime = session.createdAt
+        oldestId = id
+      }
+    }
+    if (oldestId) {
+      this.sessions.delete(oldestId)
+    }
+  }
+
   private buildStickySetCookie(sessionId: string): string {
     const cookieName = this.config.stickySession?.cookieName ?? 'lb-session'
     const ttl = this.config.stickySession?.ttl ?? 3600000
+
+    if (!/^[a-zA-Z0-9!#$%&'*+\-.^_`|~]+$/.test(cookieName)) {
+      throw new Error(`Invalid sticky-session cookie name: ${cookieName}`)
+    }
+    if (!Number.isFinite(ttl) || ttl < 0) {
+      throw new Error(`Invalid sticky-session TTL: ${ttl}`)
+    }
+
     const parts: string[] = [`${cookieName}=${sessionId}`]
     parts.push(`Max-Age=${Math.floor(ttl / 1000)}`)
     parts.push('Path=/')
@@ -929,9 +1008,10 @@ export class HttpLoadBalancer implements LoadBalancer {
    */
   private async performHealthChecks(): Promise<void> {
     const healthCheckConfig = this.config.healthCheck
-    if (!healthCheckConfig?.enabled) {
+    if (!healthCheckConfig?.enabled || this.healthCheckInProgress) {
       return
     }
+    this.healthCheckInProgress = true
 
     const failureThreshold = healthCheckConfig.failureThreshold ?? 3
     const successThreshold = healthCheckConfig.successThreshold ?? 2
@@ -952,6 +1032,7 @@ export class HttpLoadBalancer implements LoadBalancer {
     const promises = Array.from(this.targets.values()).map(
       async (target: InternalTarget) => {
         const startTime = Date.now()
+        let timeoutId: ReturnType<typeof setTimeout> | undefined
         try {
           const url = new URL(target.url)
 
@@ -982,12 +1063,12 @@ export class HttpLoadBalancer implements LoadBalancer {
             }
           }
 
-          url.pathname = healthCheckConfig.path
+          url.pathname = healthCheckConfig.path!
 
           const controller = new AbortController()
-          const timeoutId = setTimeout(
+          timeoutId = setTimeout(
             () => controller.abort(),
-            healthCheckConfig.timeout,
+            healthCheckConfig.timeout!,
           )
 
           const method = healthCheckConfig.method ?? 'GET'
@@ -1001,17 +1082,19 @@ export class HttpLoadBalancer implements LoadBalancer {
             redirect: 'manual',
           })
 
-          clearTimeout(timeoutId)
           const duration = Date.now() - startTime
 
           const isHealthy =
             response.status === (healthCheckConfig.expectedStatus ?? 200)
 
-          // Check response body if expected, with bounded read size
+          // Check response body if expected, with bounded read size.
+          // The abort timeout is kept active until the body is fully consumed
+          // so a slow-trickling response cannot hold the probe open forever (V-14).
           if (isHealthy && healthCheckConfig.expectedBody) {
             const body = await this.readBoundedResponse(
               response,
               MAX_HEALTH_CHECK_BODY_SIZE,
+              controller.signal,
             )
             const bodyMatches = body.includes(healthCheckConfig.expectedBody)
 
@@ -1083,11 +1166,17 @@ export class HttpLoadBalancer implements LoadBalancer {
             duration,
             error as Error,
           )
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId)
         }
       },
     )
 
-    await Promise.allSettled(promises)
+    try {
+      await Promise.allSettled(promises)
+    } finally {
+      this.healthCheckInProgress = false
+    }
   }
 
   /**
@@ -1096,11 +1185,23 @@ export class HttpLoadBalancer implements LoadBalancer {
   private async readBoundedResponse(
     response: Response,
     maxBytes: number,
+    signal?: AbortSignal,
   ): Promise<string> {
     const reader = response.body?.getReader()
     if (!reader) {
       return ''
     }
+
+    const onAbort = signal
+      ? () => {
+          try {
+            reader.cancel('health check timeout')
+          } catch {
+            // ignore
+          }
+        }
+      : undefined
+    if (onAbort) signal!.addEventListener('abort', onAbort, { once: true })
 
     const chunks: Uint8Array[] = []
     let total = 0
@@ -1115,6 +1216,7 @@ export class HttpLoadBalancer implements LoadBalancer {
         total += chunk.length
       }
     } finally {
+      if (onAbort) signal!.removeEventListener('abort', onAbort)
       reader.releaseLock()
     }
 

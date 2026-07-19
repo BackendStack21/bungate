@@ -84,6 +84,7 @@ await gateway.listen()
 const gateway = new BunGateway({
   server: {
     port: 443, // HTTPS port
+    hostname: 'example.com',
   },
   security: {
     tls: {
@@ -92,6 +93,7 @@ const gateway = new BunGateway({
       key: './key.pem',
       redirectHTTP: true,
       redirectPort: 80, // HTTP port for redirects
+      redirectAllowedHosts: ['example.com', '*.example.com'],
     },
   },
 })
@@ -187,6 +189,9 @@ interface TLSConfig {
 
   /** HTTP port for redirects */
   redirectPort?: number
+
+  /** Allowed Host header values for the HTTP->HTTPS redirect server. Supports leading wildcards. */
+  redirectAllowedHosts?: string[]
 }
 ```
 
@@ -295,7 +300,7 @@ When `redirectHTTP` is enabled, Bungate automatically starts a second server on 
 
 ```typescript
 const gateway = new BunGateway({
-  server: { port: 443 },
+  server: { port: 443, hostname: 'example.com' },
   security: {
     tls: {
       enabled: true,
@@ -303,6 +308,7 @@ const gateway = new BunGateway({
       key: './key.pem',
       redirectHTTP: true,
       redirectPort: 80,
+      redirectAllowedHosts: ['example.com', '*.example.com'],
     },
   },
 })
@@ -313,6 +319,7 @@ The redirect server:
 - Returns HTTP 301 (Moved Permanently)
 - Preserves the request path and query parameters
 - Sets the `Location` header to the HTTPS URL
+- Validates the request `Host` against `redirectAllowedHosts` or `server.hostname` to prevent open redirects
 - Closes the connection after redirect
 
 ## Troubleshooting
@@ -630,7 +637,7 @@ Default cipher suites prioritize security and performance:
 
 ### Minimum TLS Version
 
-Set minimum TLS version to enforce security standards:
+Set minimum TLS version to enforce security standards. Bungate maps `minVersion` and `cipherSuites` to the Bun-native `secureOptions` and `ciphers` fields so the hardening is actually honored:
 
 ```typescript
 tls: {
@@ -666,6 +673,7 @@ const gateway = new BunGateway({
       cipherSuites: ['TLS_AES_256_GCM_SHA384', 'TLS_CHACHA20_POLY1305_SHA256'],
       redirectHTTP: true,
       redirectPort: 80,
+      redirectAllowedHosts: ['example.com', '*.example.com'],
     },
 
     // Input validation

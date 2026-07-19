@@ -4,6 +4,7 @@ import type {
   CircuitBreakerOptions,
 } from 'fetch-gate'
 import type { LoadBalancerConfig } from './load-balancer'
+import type { GatewayProxyOptions } from './proxy'
 import type {
   JWTAuthOptions,
   RateLimitOptions,
@@ -69,52 +70,7 @@ export interface RouteConfig {
    * Proxy configuration options (follows fetch-gate pattern)
    * Controls how requests are forwarded to backend services
    */
-  proxy?: {
-    /**
-     * Additional headers to include in proxied requests
-     * These headers are merged with the original request headers
-     * @example { 'X-Forwarded-For': 'gateway', 'Authorization': 'Bearer token' }
-     */
-    headers?: Record<string, string>
-
-    /**
-     * Request timeout in milliseconds for proxy requests
-     * @default 30000 (30 seconds)
-     */
-    timeout?: number
-
-    /**
-     * Whether to automatically follow HTTP redirects
-     * @default true
-     */
-    followRedirects?: boolean
-
-    /**
-     * Maximum number of redirects to follow
-     * @default 5
-     */
-    maxRedirects?: number
-
-    /**
-     * Path rewriting rules for modifying the request path before forwarding
-     * @example
-     * - Object: { '^/api/v1': '/v1', '^/old': '/new' }
-     * - Function: (path) => path.replace('/api', '')
-     */
-    pathRewrite?: Record<string, string> | ((path: string) => string)
-
-    /**
-     * Additional query parameters to append to proxied requests
-     * @example { 'version': '1.0', 'source': 'gateway' } or 'version=1.0&source=gateway'
-     */
-    queryString?: Record<string, any> | string
-
-    /**
-     * Custom fetch options for the proxy request
-     * Allows fine-grained control over the request behavior
-     */
-    request?: RequestInit
-  }
+  proxy?: GatewayProxyOptions
 
   /**
    * Lifecycle hooks for request/response processing (follows fetch-gate pattern)

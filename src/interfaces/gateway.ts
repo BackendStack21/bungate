@@ -3,10 +3,11 @@ import type { RouteConfig } from './route'
 import type {
   BodyParserOptions,
   JWTAuthOptions,
+  RateLimitOptions,
   RequestHandler,
   ZeroRequest,
 } from './middleware'
-import type { ProxyOptions } from './proxy'
+import type { GatewayProxyOptions } from './proxy'
 import type { Logger } from './logger'
 import type { SecurityConfig } from '../security/config'
 
@@ -148,7 +149,7 @@ export interface GatewayConfig {
    * Global proxy configuration applied to all routes
    * Settings here can be overridden by individual route configurations
    */
-  proxy?: ProxyOptions
+  proxy?: GatewayProxyOptions
 
   /**
    * Cross-Origin Resource Sharing (CORS) configuration
@@ -199,30 +200,7 @@ export interface GatewayConfig {
    * Rate limiting configuration to prevent abuse
    * Protects against excessive requests from clients
    */
-  rateLimit?: {
-    /**
-     * Time window for rate limiting in milliseconds
-     * @default 900000 (15 minutes)
-     */
-    windowMs?: number
-    /**
-     * Maximum number of requests per window
-     * @default 100
-     */
-    max?: number
-    /**
-     * Function to generate unique keys for rate limiting
-     * Used to identify clients (by IP, user ID, etc.)
-     * @default (req) => req.ip
-     */
-    keyGenerator?: (req: ZeroRequest) => string
-    /**
-     * Include rate limit info in standard headers
-     * Adds X-RateLimit-* headers to responses
-     * @default true
-     */
-    standardHeaders?: boolean
-  }
+  rateLimit?: RateLimitOptions
 
   /**
    * JWT (JSON Web Token) authentication configuration

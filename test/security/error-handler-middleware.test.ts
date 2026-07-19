@@ -178,6 +178,24 @@ describe('ErrorHandlerMiddleware', () => {
       expect(body.error.message).not.toContain('8080')
     })
 
+    test('should sanitize backend URL extracted from error.url', async () => {
+      const middleware = createProductionErrorHandler()
+      const req = new Request('http://localhost/test') as any
+
+      const next = async () => {
+        const error = new Error('Connection failed') as any
+        error.backend = true
+        error.url = 'http://internal-api:3000/secret'
+        throw error
+      }
+
+      const response = await middleware(req, next)
+      const body: any = await response!.json()
+
+      expect(body.error.message).not.toContain('internal-api')
+      expect(body.error.message).not.toContain('3000')
+    })
+
     test('should detect ECONNREFUSED errors', async () => {
       const middleware = createErrorHandlerMiddleware({
         production: true,
@@ -341,7 +359,11 @@ describe('ErrorHandlerMiddleware', () => {
     })
 
     test('should include details in development mode', async () => {
-      const middleware = createDevelopmentErrorHandler()
+      const middleware = createErrorHandlerMiddleware({
+        production: false,
+        includeStackTrace: true,
+        logErrors: false,
+      } as any)
       const req = new Request('http://localhost/test') as any
 
       const next = async () => {

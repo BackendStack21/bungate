@@ -96,17 +96,17 @@ export interface LoadBalancerConfig {
      * Health check interval in milliseconds
      * @default 30000 (30 seconds)
      */
-    interval: number
+    interval?: number
     /**
      * Health check request timeout in milliseconds
      * @default 5000 (5 seconds)
      */
-    timeout: number
+    timeout?: number
     /**
      * Health check endpoint path
      * @default '/health'
      */
-    path: string
+    path?: string
     /**
      * Expected HTTP status code for healthy response
      * @default 200
@@ -172,6 +172,19 @@ export interface LoadBalancerConfig {
      * @default 3600000 (1 hour)
      */
     ttl?: number
+    /**
+     * Maximum number of sticky sessions to retain in memory.
+     * When the cap is reached, the oldest session is evicted.
+     * @default 10000
+     */
+    maxSessions?: number
+    /**
+     * What to do when a client sends an unknown session cookie.
+     * - 'ignore': treat as if no cookie was sent (default, prevents DoS).
+     * - 'create': mint a new session for the unknown value.
+     * @default 'ignore'
+     */
+    unknownCookiePolicy?: 'ignore' | 'create'
   }
 
   /**

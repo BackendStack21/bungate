@@ -46,12 +46,13 @@ Enterprise-grade security features and best practices for production deployments
 **Contents:**
 
 - Threat model
-- TLS/HTTPS configuration
-- Input validation & sanitization
+- TLS/HTTPS configuration (redirect host allowlisting, cipher/version mapping)
+- Input validation & sanitization (boundary-aware exclusions, encoding validation)
 - Security headers
-- Session management
-- Trusted proxy configuration
+- Session management (bounded sticky sessions)
+- Trusted proxy configuration (Cloudflare/X-Real-IP gating)
 - Request size limits
+- JWT authentication hardening (`exp` required, algorithm derivation, aud/iss support)
 - JWT key rotation
 - Security checklist
 

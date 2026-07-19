@@ -351,34 +351,38 @@ export class TrustedProxyValidator {
       }
     }
 
-    // Prefer Cloudflare-signed header when behind Cloudflare
-    const cfConnectingIP = headers.get('cf-connecting-ip')
-    if (cfConnectingIP && isValidIP(cfConnectingIP)) {
-      this.logger.debug('Extracted client IP from CF-Connecting-IP', {
-        clientIP: cfConnectingIP,
-        remoteIP,
-      })
-      return cfConnectingIP
+    // Prefer Cloudflare-signed header only when explicitly enabled (V-18).
+    if (this.config.trustCloudflare) {
+      const cfConnectingIP = headers.get('cf-connecting-ip')
+      if (cfConnectingIP && isValidIP(cfConnectingIP)) {
+        this.logger.debug('Extracted client IP from CF-Connecting-IP', {
+          clientIP: cfConnectingIP,
+          remoteIP,
+        })
+        return cfConnectingIP
+      }
     }
 
-    // X-Real-IP / X-Client-IP are only trustworthy when the immediate proxy
-    // has been validated above.
-    const xRealIP = headers.get('x-real-ip')
-    if (xRealIP && isValidIP(xRealIP)) {
-      this.logger.debug('Extracted client IP from X-Real-IP', {
-        clientIP: xRealIP,
-        remoteIP,
-      })
-      return xRealIP
-    }
+    // X-Real-IP / X-Client-IP are only trustworthy when explicitly enabled
+    // and the immediate proxy has been validated above (V-18).
+    if (this.config.trustXRealIP) {
+      const xRealIP = headers.get('x-real-ip')
+      if (xRealIP && isValidIP(xRealIP)) {
+        this.logger.debug('Extracted client IP from X-Real-IP', {
+          clientIP: xRealIP,
+          remoteIP,
+        })
+        return xRealIP
+      }
 
-    const xClientIP = headers.get('x-client-ip')
-    if (xClientIP && isValidIP(xClientIP)) {
-      this.logger.debug('Extracted client IP from X-Client-IP', {
-        clientIP: xClientIP,
-        remoteIP,
-      })
-      return xClientIP
+      const xClientIP = headers.get('x-client-ip')
+      if (xClientIP && isValidIP(xClientIP)) {
+        this.logger.debug('Extracted client IP from X-Client-IP', {
+          clientIP: xClientIP,
+          remoteIP,
+        })
+        return xClientIP
+      }
     }
 
     // No valid forwarded header found, use direct connection IP

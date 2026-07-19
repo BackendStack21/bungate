@@ -44,13 +44,12 @@ import { BunGateway } from 'bungate'
 const gateway = new BunGateway({
   server: { port: 3000 },
   auth: {
+    // HS256 secrets must be at least 32 bytes. Bungate derives the allowed
+    // algorithm from the key type when algorithms is omitted.
     secret: process.env.JWT_SECRET,
-    jwtOptions: {
-      algorithms: ['HS256', 'RS256'],
-      issuer: 'https://auth.myapp.com',
-      audience: 'https://api.myapp.com',
-    },
-    // Paths that don't require authentication
+    issuer: 'https://auth.myapp.com',
+    audience: 'https://api.myapp.com',
+    // Paths that don't require authentication (boundary-aware matching)
     excludePaths: [
       '/health',
       '/metrics',
@@ -86,12 +85,13 @@ gateway.addRoute({
   pattern: '/admin/*',
   target: 'http://admin-service:3000',
   auth: {
-    secret: process.env.ADMIN_JWT_SECRET,
+    // For RS256/ES256, `secret` may be a PEM public key or a CryptoKey.
+    secret: process.env.ADMIN_JWT_PUBLIC_KEY!,
     jwtOptions: {
       algorithms: ['RS256'],
-      issuer: 'https://auth.myapp.com',
-      audience: 'https://admin.myapp.com',
     },
+    issuer: 'https://auth.myapp.com',
+    audience: 'https://admin.myapp.com',
     optional: false, // Authentication is required
   },
 })
@@ -102,10 +102,8 @@ gateway.addRoute({
   target: 'http://user-service:3000',
   auth: {
     secret: process.env.JWT_SECRET,
-    jwtOptions: {
-      algorithms: ['HS256'],
-      issuer: 'https://auth.myapp.com',
-    },
+    issuer: 'https://auth.myapp.com',
+    audience: 'https://api.myapp.com',
   },
 })
 
@@ -116,6 +114,14 @@ gateway.addRoute({
   // No auth configuration
 })
 ```
+
+### JWT Security Notes
+
+- **Tokens must include an `exp` claim.** Bungate rejects tokens without an expiration time.
+- **Pin `issuer` and `audience`** to prevent cross-service token replay, especially when using JWKS.
+- **HS256 secrets must be at least 32 bytes.** Short secrets are rejected at startup.
+- **Algorithm confusion is blocked.** PEM-like secrets cannot be used as HMAC keys; the allowed algorithm family is derived from the key type when `algorithms` is omitted.
+- **`excludePaths` uses boundary-aware matching.** `/public/*` excludes `/public/foo` but not `/publicity/foo`.
 
 ### Custom Token Extraction
 

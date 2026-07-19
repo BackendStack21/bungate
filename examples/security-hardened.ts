@@ -118,7 +118,7 @@ const config = {
   tlsCert: process.env.TLS_CERT_PATH || './examples/cert.pem',
   tlsKey: process.env.TLS_KEY_PATH || './examples/key.pem',
 
-  // JWT Secrets (use strong, random keys in production)
+  // JWT Secrets (use strong, random keys with >= 32 bytes for HS256)
   jwtPrimary: requireEnv('JWT_SECRET_PRIMARY'),
   jwtOld: requireEnv('JWT_SECRET_OLD'),
 
@@ -182,6 +182,9 @@ const gateway = new BunGateway({
       ],
       redirectHTTP: true,
       redirectPort: config.httpPort,
+      // Prevent open redirect via Host header. Use an allowlist or set
+      // server.hostname explicitly.
+      redirectAllowedHosts: ['localhost'],
     },
 
     // Input validation
@@ -230,6 +233,10 @@ const gateway = new BunGateway({
       trustedIPs: ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'],
       trustedNetworks: ['cloudflare'],
       maxForwardedDepth: 2,
+      // Only enable these when the immediate upstream is actually Cloudflare
+      // or a trusted proxy that sets these headers.
+      trustCloudflare: false,
+      trustXRealIP: false,
     },
 
     // Security headers
@@ -460,6 +467,13 @@ const gateway = new BunGateway({
           timeout: 2000,
           path: '/health',
           expectedStatus: 200,
+        },
+        stickySession: {
+          enabled: false, // Enable only if backends require affinity
+          cookieName: 'lb-session',
+          ttl: 3600000,
+          maxSessions: 10000,
+          unknownCookiePolicy: 'ignore',
         },
       },
       circuitBreaker: {

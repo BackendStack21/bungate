@@ -1,4 +1,5 @@
-import { describe, test, expect } from 'bun:test'
+import { describe, test, expect, spyOn } from 'bun:test'
+import * as crypto from 'crypto'
 import {
   calculateEntropy,
   hasMinimumEntropy,
@@ -7,6 +8,8 @@ import {
   recursiveDecodeURIComponent,
   sanitizePath,
   sanitizeHeader,
+  isValidHeaderName,
+  isValidHeaderValue,
   containsOnlyAllowedChars,
   matchesBlockedPattern,
   sanitizeErrorMessage,
@@ -161,12 +164,11 @@ describe('recursiveDecodeURIComponent', () => {
     for (let i = 0; i < 6; i++) {
       encoded = encodeURIComponent(encoded)
     }
-    // With only 5 iterations, it will decode 5 levels but not the 6th.
-    const result = recursiveDecodeURIComponent(encoded)
-    // After 5 iterations of decoding starting from 6x-encoded '/',
-    // we'll have 1 layer of encoding left → '%2F', not fully to '/'.
-    expect(result).not.toBe('/')
-    expect(result).toContain('%')
+    // With only 5 iterations, percent escapes still remain. The hardened
+    // decoder rejects this to prevent bypasses against deeper-decoding backends.
+    expect(() => recursiveDecodeURIComponent(encoded)).toThrow(
+      'incompletely decoded percent encoding',
+    )
   })
 
   test('is idempotent (already decoded input is stable)', () => {
@@ -243,6 +245,12 @@ describe('sanitizePath', () => {
 
   test('normalizes path with multiple issues', () => {
     expect(sanitizePath('..//api/..%2Fusers/')).toBe('/api/users')
+  })
+
+  test('rejects non-canonical encodings in path', () => {
+    expect(() => sanitizePath('/foo/%C0%AF')).toThrow(
+      /Non-canonical percent encoding detected in path/i,
+    )
   })
 })
 
@@ -683,6 +691,17 @@ describe('timingSafeEqual', () => {
   test('is case-sensitive', () => {
     expect(timingSafeEqual('Hello', 'hello')).toBe(false)
   })
+
+  test('returns false when crypto.timingSafeEqual throws', () => {
+    const mock = spyOn(crypto, 'timingSafeEqual').mockImplementation(() => {
+      throw new Error('unexpected')
+    })
+    try {
+      expect(timingSafeEqual('same', 'same')).toBe(false)
+    } finally {
+      mock.mockRestore()
+    }
+  })
 })
 
 // ─── isValidURL ───────────────────────────────────────────────────────
@@ -762,5 +781,92 @@ describe('extractDomain', () => {
 
   test('extracts IP address hostname', () => {
     expect(extractDomain('http://192.168.1.1/api')).toBe('192.168.1.1')
+  })
+})
+
+// ─── header name/value validation ─────────────────────────────────────
+
+describe('isValidHeaderName', () => {
+  test('accepts valid token characters', () => {
+    expect(isValidHeaderName('Content-Type')).toBe(true)
+    expect(isValidHeaderName('X-Custom-Header')).toBe(true)
+  })
+
+  test('rejects invalid token characters', () => {
+    expect(isValidHeaderName('Bad Name')).toBe(false)
+    expect(isValidHeaderName('Bad:Name')).toBe(false)
+  })
+})
+
+describe('isValidHeaderValue', () => {
+  test('accepts visible ASCII and HTAB', () => {
+    expect(isValidHeaderValue('value')).toBe(true)
+    expect(isValidHeaderValue('value\twith\ttab')).toBe(true)
+  })
+
+  test('rejects control characters', () => {
+    expect(isValidHeaderValue('value\r\n')).toBe(false)
+    expect(isValidHeaderValue('value\0')).toBe(false)
+  })
+})
+
+// ─── non-canonical / overlong encoding detection ──────────────────────
+
+describe('recursiveDecodeURIComponent non-canonical encoding', () => {
+  test('rejects 2-byte overlong form', () => {
+    expect(() => recursiveDecodeURIComponent('%C0%AF')).toThrow(
+      /non-canonical/i,
+    )
+    expect(() => recursiveDecodeURIComponent('%C0%80')).toThrow(
+      /non-canonical/i,
+    )
+  })
+
+  test('rejects 3-byte overlong form', () => {
+    expect(() => recursiveDecodeURIComponent('%E0%80%AF')).toThrow(
+      /non-canonical/i,
+    )
+  })
+
+  test('rejects 4-byte overlong form', () => {
+    expect(() => recursiveDecodeURIComponent('%F0%80%80%AF')).toThrow(
+      /non-canonical/i,
+    )
+  })
+
+  test('rejects invalid leading bytes', () => {
+    expect(() => recursiveDecodeURIComponent('%FE')).toThrow(/non-canonical/i)
+    expect(() => recursiveDecodeURIComponent('%FF')).toThrow(/non-canonical/i)
+  })
+})
+
+// ─── IPv6 CIDR edge cases ─────────────────────────────────────────────
+
+describe('isIPInCIDR IPv6 edge cases', () => {
+  test('returns true for matching IPv6 network', () => {
+    expect(isIPInCIDR('2001:db8::1', '2001:db8::/64')).toBe(true)
+  })
+
+  test('returns false for IPv6 outside network', () => {
+    expect(isIPInCIDR('2001:db8:1::1', '2001:db8::/64')).toBe(false)
+  })
+
+  test('returns false for out-of-range IPv6 prefix', () => {
+    expect(isIPInCIDR('2001:db8::1', '2001:db8::/129')).toBe(false)
+  })
+
+  test('returns false for invalid IPv6 in CIDR', () => {
+    expect(isIPInCIDR('2001:db8::1', 'not-an-ip/64')).toBe(false)
+    expect(isIPInCIDR('not-an-ip', '2001:db8::/64')).toBe(false)
+  })
+
+  test('matches on non-byte IPv6 prefix boundary', () => {
+    expect(isIPInCIDR('2001:db8::1', '2001:db8::/68')).toBe(true)
+    // Byte 8 (high nibble) differs from the network, so /68 should not match.
+    expect(isIPInCIDR('2001:db8:0:0:1000::', '2001:db8::/68')).toBe(false)
+  })
+
+  test('returns false for non-IP/non-IPv6 CIDR network', () => {
+    expect(isIPInCIDR('2001:db8::1', 'not-an-ip')).toBe(false)
   })
 })

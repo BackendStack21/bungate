@@ -209,12 +209,13 @@ export function createProductionErrorHandler(): RequestHandler {
  * Creates a development error handler middleware
  *
  * This is a convenience function that creates middleware with
- * development-friendly defaults including stack traces.
+ * development-friendly defaults. Stack traces are still excluded from HTTP
+ * responses by default; set includeStackTrace to true explicitly when needed.
  */
 export function createDevelopmentErrorHandler(): RequestHandler {
   return createErrorHandlerMiddleware({
     production: false,
-    includeStackTrace: true,
+    includeStackTrace: false,
     logErrors: true,
     sanitizeBackendErrors: false,
   })

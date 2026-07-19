@@ -235,4 +235,60 @@ describe('BunGateway HTTP method helpers', () => {
     )
     expect(res.status).toBe(204)
   })
+
+  test('should register OPTIONS route', async () => {
+    gateway.options('/options', async () => new Response('options-ok'))
+    const res = await gateway.fetch(
+      new Request('http://localhost/options', { method: 'OPTIONS' }),
+    )
+    expect(await res.text()).toBe('options-ok')
+  })
+
+  test('should validate CORS config against security policy', () => {
+    const secureGateway = new BunGateway({
+      security: {
+        corsValidation: {
+          allowWildcardWithCredentials: false,
+          requireHttps: true,
+          maxOrigins: 1,
+        },
+      },
+    })
+    const validator = (secureGateway as any).validateCORSConfig.bind(
+      secureGateway,
+    )
+
+    // No validation configured – should not throw
+    const permissiveGateway = new BunGateway()
+    expect(() =>
+      (permissiveGateway as any).validateCORSConfig({
+        origin: '*',
+        credentials: true,
+      }),
+    ).not.toThrow()
+
+    // Wildcard origin with credentials rejected
+    expect(() =>
+      validator({
+        origin: '*',
+        credentials: true,
+      }),
+    ).toThrow('wildcard origin with credentials is not allowed')
+
+    // Non-HTTPS origins rejected when required
+    expect(() =>
+      validator({
+        origin: 'http://example.com',
+      }),
+    ).toThrow('non-HTTPS origins are not allowed')
+
+    // Too many origins rejected
+    expect(() =>
+      validator({
+        origin: ['https://a.com', 'https://b.com'],
+      }),
+    ).toThrow('number of origins (2) exceeds maximum (1)')
+
+    secureGateway.close().catch(() => {})
+  })
 })

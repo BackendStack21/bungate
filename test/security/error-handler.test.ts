@@ -157,12 +157,16 @@ describe('SecureErrorHandler', () => {
   describe('error logging', () => {
     test('should log errors when enabled', () => {
       const logs: any[] = []
-      const originalError = console.error
-      console.error = (...args: any[]) => logs.push(args)
+      const logger = {
+        error: (entry: any) => logs.push(entry),
+        warn: (entry: any) => logs.push(entry),
+        info: (entry: any) => logs.push(entry),
+      }
 
       const handler = new SecureErrorHandler({
         logErrors: true,
         production: false,
+        logger,
       })
       const error = new Error('Test error')
       const req = new Request('http://localhost/test')
@@ -170,34 +174,37 @@ describe('SecureErrorHandler', () => {
       handler.handleError(error, req)
 
       expect(logs.length).toBeGreaterThan(0)
-
-      console.error = originalError
     })
 
     test('should not log errors when disabled', () => {
       const logs: any[] = []
-      const originalError = console.error
-      console.error = (...args: any[]) => logs.push(args)
+      const logger = {
+        error: (entry: any) => logs.push(entry),
+        warn: (entry: any) => logs.push(entry),
+        info: (entry: any) => logs.push(entry),
+      }
 
-      const handler = new SecureErrorHandler({ logErrors: false })
+      const handler = new SecureErrorHandler({ logErrors: false, logger })
       const error = new Error('Test error')
       const req = new Request('http://localhost/test')
 
       handler.handleError(error, req)
 
       expect(logs.length).toBe(0)
-
-      console.error = originalError
     })
 
     test('should include request context in logs', () => {
       const logs: any[] = []
-      const originalError = console.error
-      console.error = (...args: any[]) => logs.push(args)
+      const logger = {
+        error: (entry: any) => logs.push(entry),
+        warn: (entry: any) => logs.push(entry),
+        info: (entry: any) => logs.push(entry),
+      }
 
       const handler = new SecureErrorHandler({
         logErrors: true,
         production: false,
+        logger,
       })
       const error = new Error('Test error')
       const req = new Request('http://localhost/test?param=value', {
@@ -208,21 +215,23 @@ describe('SecureErrorHandler', () => {
       handler.handleError(error, req)
 
       expect(logs.length).toBeGreaterThan(0)
-      const logEntry = JSON.parse(logs[0][1])
+      const logEntry = logs[0]
       expect(logEntry.request.method).toBe('POST')
       expect(logEntry.request.url).toContain('/test')
-
-      console.error = originalError
     })
 
     test('should redact sensitive headers in production logs', () => {
       const logs: any[] = []
-      const originalError = console.error
-      console.error = (...args: any[]) => logs.push(args)
+      const logger = {
+        error: (entry: any) => logs.push(entry),
+        warn: (entry: any) => logs.push(entry),
+        info: (entry: any) => logs.push(entry),
+      }
 
       const handler = new SecureErrorHandler({
         logErrors: true,
         production: true,
+        logger,
       })
       const error = new Error('Test error')
       const req = new Request('http://localhost/test', {
@@ -235,11 +244,9 @@ describe('SecureErrorHandler', () => {
       handler.handleError(error, req)
 
       expect(logs.length).toBeGreaterThan(0)
-      const logEntry = JSON.parse(logs[0][1])
+      const logEntry = logs[0]
       expect(logEntry.request.headers.authorization).toBe('[REDACTED]')
       expect(logEntry.request.headers['x-api-key']).toBe('[REDACTED]')
-
-      console.error = originalError
     })
   })
 

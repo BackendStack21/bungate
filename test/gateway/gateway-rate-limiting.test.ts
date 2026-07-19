@@ -141,6 +141,50 @@ describe('BunGateway Rate Limiting (0http-bun)', () => {
     expect(user2Response1.status).toBe(200)
   })
 
+  test('should apply global rate limiting with excludePaths', async () => {
+    const gateway = new BunGateway({
+      rateLimit: {
+        windowMs: 60000,
+        max: 1,
+        excludePaths: ['/health'],
+      },
+    })
+
+    gateway.addRoute({
+      pattern: '/*',
+      handler: (req: ZeroRequest) =>
+        Response.json({ path: new URL(req.url).pathname }),
+    })
+
+    // First request to a non-excluded path succeeds
+    const response1 = await gateway.fetch(
+      new Request('http://localhost/api/data'),
+    )
+    expect(response1.status).toBe(200)
+
+    // Second request to the same path is rate limited
+    const response2 = await gateway.fetch(
+      new Request('http://localhost/api/data'),
+    )
+    expect(response2.status).toBe(429)
+
+    // Excluded path remains available
+    for (let i = 0; i < 3; i++) {
+      const healthResponse = await gateway.fetch(
+        new Request('http://localhost/health'),
+      )
+      expect(healthResponse.status).toBe(200)
+    }
+
+    // Boundary: '/healthcheck' should NOT match the excluded '/health' prefix
+    const healthCheckResponse = await gateway.fetch(
+      new Request('http://localhost/healthcheck'),
+    )
+    expect(healthCheckResponse.status).toBe(429)
+
+    await gateway.close()
+  })
+
   test('should exclude paths from rate limiting', async () => {
     const route: RouteConfig = {
       pattern: '/api/maybe-limited/*',
@@ -182,6 +226,49 @@ describe('BunGateway Rate Limiting (0http-bun)', () => {
       const healthResponse = await gateway.fetch(healthRequest)
       expect(healthResponse.status).toBe(200)
     }
+  })
+
+  test('should use boundary-aware excludePaths for route rate limiting', async () => {
+    const route: RouteConfig = {
+      pattern: '/api/maybe-limited/*',
+      methods: ['GET'],
+      handler: (req: ZeroRequest) => {
+        return Response.json({
+          message: 'Success',
+          path: new URL(req.url).pathname,
+        })
+      },
+      rateLimit: {
+        windowMs: 60000,
+        max: 1,
+        excludePaths: ['/api/maybe-limited/health'],
+      },
+    }
+
+    gateway.addRoute(route)
+
+    // The excluded path itself is not rate limited.
+    const healthResponse = await gateway.fetch(
+      new Request('http://localhost/api/maybe-limited/health', {
+        method: 'GET',
+      }),
+    )
+    expect(healthResponse.status).toBe(200)
+
+    // A sibling path sharing the prefix MUST still be rate limited.
+    const response1 = await gateway.fetch(
+      new Request('http://localhost/api/maybe-limited/healthcheck', {
+        method: 'GET',
+      }),
+    )
+    expect(response1.status).toBe(200)
+
+    const response2 = await gateway.fetch(
+      new Request('http://localhost/api/maybe-limited/healthcheck', {
+        method: 'GET',
+      }),
+    )
+    expect(response2.status).toBe(429)
   })
 
   test('should provide rate limit context in request', async () => {
